@@ -12,12 +12,19 @@ import {
 	collection,
 	getDocs,
 	query,
+	where,
 	serverTimestamp,
 	setLogLevel,
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- IMPORT FROM CENTRAL CONFIG ---
 import { auth, db, appId } from "./firebase-config.js";
+import {
+	EMPTY_VEHICLE,
+	escapeHtml,
+	parseQty,
+	sumQty,
+} from "./utils.js";
 
 // --- MAPPING VARIABLES ---
 // Map imported variables to local names to maintain compatibility with existing logic
@@ -29,6 +36,9 @@ const gatepassIN_appId = appId;
 let gatepassIN_masterData = [];
 let gatepassIN_masterDataCache = { companies: new Set(), issueBys: new Set() };
 let gatepassIN_isSaving = false;
+// onAuthStateChanged fires again after the anonymous sign-in; the form must
+// only be set up once, or the second call wipes a gatepass being edited.
+let gatepassIN_formReady = false;
 
 // --- DOM ELEMENT REFERENCES ---
 const DOMElements = {
@@ -180,6 +190,28 @@ const populateDatalistsForGatepassIN = () => {
 	});
 };
 
+// Supplier choices + Zone for one company, straight from master data.
+const getCompanyInfoForGatepassIN = (companyUpper) => {
+	const entries = gatepassIN_masterData.filter(
+		(d) => d.company?.trim().toUpperCase() === companyUpper
+	);
+	return {
+		zones: [...new Set(entries.map((d) => d.zone2).filter(Boolean))],
+		suppliers: new Set(entries.map((d) => d.supplier).filter(Boolean)),
+	};
+};
+
+const fillSupplierDatalistForGatepassIN = (index, suppliers) => {
+	const datalist = document.getElementById(`gatepassIN_supplierList-${index}`);
+	if (!datalist) return;
+	datalist.innerHTML = "";
+	[EMPTY_VEHICLE, ...[...suppliers].sort()].forEach((item) => {
+		const option = document.createElement("option");
+		option.value = item;
+		datalist.appendChild(option);
+	});
+};
+
 const populateSupplierTableForGatepassIN = () => {
 	DOMElements.supplierTableBody.innerHTML = "";
 	const fragment = document.createDocumentFragment();
@@ -206,7 +238,7 @@ const populateSupplierTableForGatepassIN = () => {
 							.map(
 								(field) => `
                 <td class="py-2 px-2">
-                    <input type="number" data-field="${field}" data-index="${i}" class="gatepassIN_quantityInput w-full p-1 border rounded text-center" min="0" disabled>
+                    <input type="number" data-field="${field}" data-index="${i}" class="gatepassIN_quantityInput w-full p-1 border rounded text-center" min="0" step="1" disabled>
                 </td>
             `
 							)
@@ -223,7 +255,9 @@ const populateSupplierTableForGatepassIN = () => {
 const populateSupplierTableForGatepassIN_withData = (suppliers = []) => {
 	DOMElements.supplierTableBody.innerHTML = "";
 	const fragment = document.createDocumentFragment();
-	const rowsToGenerate = 30;
+	// Keep every supplier that was saved, even past the first 30 rows,
+	// so editing an existing gatepass can never drop the extra lines.
+	const rowsToGenerate = Math.max(30, suppliers.length);
 
 	for (let i = 0; i < rowsToGenerate; i++) {
 		const s = suppliers[i];
@@ -231,39 +265,32 @@ const populateSupplierTableForGatepassIN_withData = (suppliers = []) => {
 		const newRow = document.createElement("tr");
 		newRow.className = "border-b border-gray-200";
 
-		const companyDisabled = i > 0 && !hasData;
-		const isRottPlao = s?.name === "รถเปล่า";
+		// The row right after the last saved one stays open, so lines can
+		// still be added while editing.
+		const companyDisabled = i > 0 && !hasData && i !== suppliers.length;
+		const isRottPlao = s?.name === EMPTY_VEHICLE;
 		const fieldsDisabled = !hasData || isRottPlao;
 
 		// Calculate initial row total
-		let rowTotal = 0;
-		if (s) {
-			rowTotal =
-				(s.ptb || 0) +
-				(s.cpb || 0) +
-				(s.mov || 0) +
-				(s.stp || 0) +
-				(s.pl || 0) +
-				(s.rp || 0);
-		}
+		const rowTotal = s ? sumQty(s) : 0;
 
 		newRow.innerHTML = `
             <td class="py-2 px-2">${i + 1}.</td>
             <td class="py-2 px-2">
-                <input type="text" list="gatepassIN_companyList-${i}" data-index="${i}" class="gatepassIN_companyInput uppercase-input w-full p-1 border rounded" value="${
+                <input type="text" list="gatepassIN_companyList-${i}" data-index="${i}" class="gatepassIN_companyInput uppercase-input w-full p-1 border rounded" value="${escapeHtml(
 			s?.company || ""
-		}" ${companyDisabled ? "disabled" : ""}>
+		)}" ${companyDisabled ? "disabled" : ""}>
                 <datalist id="gatepassIN_companyList-${i}"></datalist>
             </td>
             <td class="py-2 px-2">
-                <input type="text" data-index="${i}" class="gatepassIN_zone2Input w-full p-1 border rounded" value="${
-			s?.zone || ""
-		}" disabled>
+                <input type="text" data-index="${i}" class="gatepassIN_zone2Input w-full p-1 border rounded" value="${escapeHtml(
+			s?.zone || s?.zone2 || ""
+		)}" disabled>
             </td>
             <td class="py-2 px-2">
-                <input type="text" list="gatepassIN_supplierList-${i}" data-index="${i}" class="gatepassIN_supplierInput uppercase-input w-full p-1 border rounded" value="${
+                <input type="text" list="gatepassIN_supplierList-${i}" data-index="${i}" class="gatepassIN_supplierInput uppercase-input w-full p-1 border rounded" value="${escapeHtml(
 			s?.name || ""
-		}" ${!hasData ? "disabled" : ""}>
+		)}" ${!hasData ? "disabled" : ""}>
                 <datalist id="gatepassIN_supplierList-${i}"></datalist>
                 <span class="gatepassIN_inlineError text-red-500 text-xs hidden"></span>
             </td>
@@ -271,9 +298,9 @@ const populateSupplierTableForGatepassIN_withData = (suppliers = []) => {
 							.map(
 								(field) => `
                 <td class="py-2 px-2">
-                    <input type="number" data-field="${field}" data-index="${i}" class="gatepassIN_quantityInput w-full p-1 border rounded text-center" value="${
+                    <input type="number" data-field="${field}" data-index="${i}" class="gatepassIN_quantityInput w-full p-1 border rounded text-center" value="${escapeHtml(
 									s?.[field] !== undefined ? s[field] : ""
-								}" min="0" ${fieldsDisabled ? "disabled" : ""}>
+								)}" min="0" step="1" ${fieldsDisabled ? "disabled" : ""}>
                 </td>
             `
 							)
@@ -288,6 +315,16 @@ const populateSupplierTableForGatepassIN_withData = (suppliers = []) => {
 	}
 	DOMElements.supplierTableBody.appendChild(fragment);
 	populateDatalistsForGatepassIN();
+	// Saved rows need their supplier choices too, otherwise the supplier
+	// field of an edited line has an empty drop-down.
+	suppliers.forEach((s, i) => {
+		const company = String(s?.company || "").trim().toUpperCase();
+		if (company)
+			fillSupplierDatalistForGatepassIN(
+				i,
+				getCompanyInfoForGatepassIN(company).suppliers
+			);
+	});
 	updateGatepassINTotals();
 };
 
@@ -303,7 +340,7 @@ const updateGatepassINTotals = () => {
 		const quantityInputs = row.querySelectorAll(".gatepassIN_quantityInput");
 
 		quantityInputs.forEach((input) => {
-			const value = parseInt(input.value, 10) || 0;
+			const value = parseQty(input.value) || 0;
 			const field = input.dataset.field;
 
 			// Accumulate column totals
@@ -373,23 +410,13 @@ const handleRowInputForGatepassIN = (e) => {
 		if (rowTotalInput) rowTotalInput.value = "";
 
 		if (companyValue) {
-			const companyEntries = gatepassIN_masterData.filter(
-				(d) => d.company?.trim().toUpperCase() === companyValue
-			);
-			const uniqueZone2s = [
-				...new Set(companyEntries.map((d) => d.zone2).filter(Boolean)),
-			];
-			const validSuppliers = new Set(
-				companyEntries.map((d) => d.supplier).filter(Boolean)
-			);
+			const { zones: uniqueZone2s, suppliers: validSuppliers } =
+				getCompanyInfoForGatepassIN(companyValue);
 
 			zone2Input.value = uniqueZone2s.join(", ") || "N/A";
 
-			[...validSuppliers].sort().forEach((item) => {
-				const option = document.createElement("option");
-				option.value = item;
-				supplierDatalist.appendChild(option);
-			});
+			if (supplierDatalist)
+				fillSupplierDatalistForGatepassIN(index, validSuppliers);
 
 			if (validSuppliers.size > 0) {
 				supplierInput.disabled = false;
@@ -406,7 +433,7 @@ const handleRowInputForGatepassIN = (e) => {
 		);
 		const rowTotalInput = currentRow.querySelector(".gatepassIN_rowTotalInput");
 
-		const isEmptyVehicle = supplierValue === "รถเปล่า";
+		const isEmptyVehicle = supplierValue === EMPTY_VEHICLE;
 
 		if (isEmptyVehicle) {
 			quantityInputs.forEach((input) => {
@@ -442,7 +469,7 @@ const handleRowInputForGatepassIN = (e) => {
 		if (nextRow) {
 			const hasQuantity = Array.from(
 				currentRow.querySelectorAll(".gatepassIN_quantityInput")
-			).some((q) => (parseInt(q.value) || 0) > 0);
+			).some((q) => (parseQty(q.value) || 0) > 0);
 
 			if (hasQuantity) {
 				nextRow.querySelector(".gatepassIN_companyInput").disabled = false;
@@ -470,20 +497,14 @@ const populateGatepassINSummary = (data) => {
 	summaryTableBody.innerHTML = "";
 	data.suppliers.forEach((s) => {
 		// Calculate row total for summary
-		const rowTotal =
-			(s.ptb || 0) +
-			(s.cpb || 0) +
-			(s.mov || 0) +
-			(s.stp || 0) +
-			(s.pl || 0) +
-			(s.rp || 0);
+		const rowTotal = sumQty(s);
 
 		const row = summaryTableBody.insertRow();
 		row.className = "border-b border-gray-200";
 		row.innerHTML = `
-            <td class="py-3 px-4 text-left">${s.company}</td>
-            <td class="py-3 px-4 text-left">${s.zone2 || ""}</td>
-            <td class="py-3 px-4 text-left">${s.name}</td>
+            <td class="py-3 px-4 text-left">${escapeHtml(s.company)}</td>
+            <td class="py-3 px-4 text-left">${escapeHtml(s.zone2 || "")}</td>
+            <td class="py-3 px-4 text-left">${escapeHtml(s.name)}</td>
             <td class="py-3 px-4 text-center">${s.ptb || 0}</td>
             <td class="py-3 px-4 text-center">${s.cpb || 0}</td>
             <td class="py-3 px-4 text-center">${s.mov || 0}</td>
@@ -520,23 +541,17 @@ const populateGatepassINSummary = (data) => {
 
 	data.suppliers.forEach((s) => {
 		const row = printTableBody.insertRow();
-		const total =
-			(s.ptb || 0) +
-			(s.cpb || 0) +
-			(s.mov || 0) +
-			(s.stp || 0) +
-			(s.pl || 0) +
-			(s.rp || 0);
+		const total = sumQty(s);
 		Object.keys(printTotals).forEach((key) => {
 			if (key !== "grand") printTotals[key] += s[key] || 0;
 		});
 		printTotals.grand += total;
 
-		const isRottPlao = s.name === "รถเปล่า";
+		const isRottPlao = s.name === EMPTY_VEHICLE;
 		row.innerHTML = `
-            <td>${s.company}</td>
-            <td>${s.zone2 || ""}</td>
-            <td>${s.name}</td>
+            <td>${escapeHtml(s.company)}</td>
+            <td>${escapeHtml(s.zone2 || "")}</td>
+            <td>${escapeHtml(s.name)}</td>
             <td>${s.ptb > 0 || isRottPlao ? s.ptb || 0 : ""}</td>
             <td>${s.cpb > 0 || isRottPlao ? s.cpb || 0 : ""}</td>
             <td>${s.mov > 0 || isRottPlao ? s.mov || 0 : ""}</td>
@@ -644,6 +659,21 @@ const loadGatepassForEditing = async (docId) => {
 	}
 };
 
+// Gatepass No. is typed by hand on this form, so make sure it is not
+// already used by another record (the record being edited is ignored).
+const findDuplicateGatepassNo = async (gatepassNo, ownDocId) => {
+	const snap = await getDocs(
+		query(
+			collection(
+				gatepassIN_db,
+				`artifacts/${gatepassIN_appId}/public/data/gatepasses`
+			),
+			where("gatepassNo", "==", gatepassNo)
+		)
+	);
+	return snap.docs.some((d) => d.id !== ownDocId);
+};
+
 // --- EVENT HANDLERS ---
 
 const handleFormSubmitForGatepassIN = async (e) => {
@@ -703,6 +733,13 @@ const handleFormSubmitForGatepassIN = async (e) => {
 		}
 	}
 
+	if (isNaN(new Date(formData.issueDateTime).getTime())) {
+		showGatepassINModal("Date & Time is not valid.");
+		if (submitBtn) submitBtn.disabled = false;
+		gatepassIN_isSaving = false;
+		return;
+	}
+
 	if (new Date(formData.issueDateTime) > new Date()) {
 		showGatepassINModal("Date & Time cannot be in the future.");
 		if (submitBtn) submitBtn.disabled = false;
@@ -735,7 +772,7 @@ const handleFormSubmitForGatepassIN = async (e) => {
 			}
 
 			if (company && name) {
-				const isRottPlao = name === "รถเปล่า";
+				const isRottPlao = name === EMPTY_VEHICLE;
 
 				if (!isRottPlao) {
 					const isValidSupplier = gatepassIN_masterData.some(
@@ -755,16 +792,26 @@ const handleFormSubmitForGatepassIN = async (e) => {
 				}
 
 				let hasQuantity = false;
+				let invalidQuantity = false;
 				const quantities = {};
 
 				row.querySelectorAll(".gatepassIN_quantityInput").forEach((input) => {
 					const field = input.dataset.field;
-					const value = parseInt(input.value, 10) || 0;
-					quantities[field] = value;
+					const value = isRottPlao ? 0 : parseQty(input.value);
+					if (Number.isNaN(value)) invalidQuantity = true;
+					quantities[field] = Number.isNaN(value) ? 0 : value;
 					if (value > 0) {
 						hasQuantity = true;
 					}
 				});
+
+				if (invalidQuantity) {
+					const message = `จำนวนต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป`;
+					showGatepassINInlineError(row, message);
+					validationError = true;
+					row.scrollIntoView({ behavior: "smooth", block: "center" });
+					break;
+				}
 
 				if (!isRottPlao && !hasQuantity) {
 					const message = `กรุณาระบุจำนวน (Quantity) หรือลบแถวนี้ออก`;
@@ -808,6 +855,20 @@ const handleFormSubmitForGatepassIN = async (e) => {
 	const form = document.getElementById("gatepassIN_form");
 	const docIdInput = form.querySelector('input[name="docId"]');
 	const docId = docIdInput ? docIdInput.value : null;
+
+	try {
+		if (await findDuplicateGatepassNo(formData.gatepassNo, docId)) {
+			showGatepassINModal(
+				`Gatepass No. "${formData.gatepassNo}" มีอยู่ในระบบแล้ว กรุณาตรวจสอบเลขที่อีกครั้ง`
+			);
+			if (submitBtn) submitBtn.disabled = false;
+			gatepassIN_isSaving = false;
+			return;
+		}
+	} catch (error) {
+		// Do not block saving just because the check itself failed.
+		console.warn("Duplicate Gatepass No. check failed:", error);
+	}
 
 	if (docId) {
 		// UPDATE
@@ -919,7 +980,7 @@ const handleSupplierBlurForGatepassIN = (e) => {
 		);
 		const rowTotalInput = currentRow.querySelector(".gatepassIN_rowTotalInput");
 
-		if (!companyValue || !supplierValue || supplierValue === "รถเปล่า") {
+		if (!companyValue || !supplierValue || supplierValue === EMPTY_VEHICLE) {
 			hideGatepassINInlineError(currentRow);
 			return;
 		}
@@ -958,7 +1019,7 @@ const initialize = async () => {
 	}
 
 	// Set Log Level if needed (optional)
-	setLogLevel("Debug");
+	setLogLevel("error");
 
 	// Set up UI and event listeners
 	setCurrentDateTimeForGatepassIN();
@@ -1054,7 +1115,8 @@ const initialize = async () => {
 				showGatepassINModal(`Authentication failed: ${error.message}`);
 			}
 		}
-		if (gatepassIN_auth.currentUser) {
+		if (gatepassIN_auth.currentUser && !gatepassIN_formReady) {
+			gatepassIN_formReady = true;
 			const editDocId = sessionStorage.getItem("editGatepassInId");
 			if (editDocId) {
 				sessionStorage.removeItem("editGatepassInId");

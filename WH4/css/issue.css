@@ -24,6 +24,29 @@ body {
   z-index: 10;
 }
 
+/* 1. Body (Form): Apply Dark Gray to the INPUT element only, not the TD */
+#supplier-table-container td:last-child input {
+  background-color: #cbd5e1; /* Slate-300 (Dark Gray) */
+  font-weight: 700; /* Bold */
+  color: #1e293b; /* Slate-800 */
+  text-align: center;
+}
+
+/* 2. Summary Table (Web View): Apply to TD since there are no inputs */
+#summary-supplier-table-body td:last-child {
+  background-color: #cbd5e1; /* Slate-300 */
+  color: #1e293b;
+  font-weight: bold;
+}
+
+/* 3. Footer: Apply to last cell to highlight the column total */
+#supplier-table-footer td:last-child,
+#summary-supplier-table-footer td:last-child {
+  background-color: #cbd5e1; /* Slate-300 */
+  color: #1e293b;
+  font-weight: bold;
+}
+
 .logo-blend {
   mix-blend-mode: multiply;
 }
@@ -34,11 +57,10 @@ body {
   z-index: 60;
 }
 
-/* Custom print styling */
 @media print {
   @page {
     size: A4;
-    margin: 0 1cm; /* Corrected to match original: Left/Right 1cm, Top/Bottom handled by container padding */
+    margin: 0 1cm;
   }
   body {
     font-family: "Sarabun", "Inter", sans-serif;
@@ -46,12 +68,12 @@ body {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
-  /* Hide everything on the page */
+
+  /* Hide everything on the page and selectively show print container */
   body * {
     visibility: hidden;
   }
 
-  /* Make the print container and everything inside it visible */
   #print-version,
   #print-version * {
     visibility: visible;
@@ -70,27 +92,27 @@ body {
     box-shadow: none;
   }
 
-  /* Restore padding for inner divs to simulate top/bottom margin per page copy */
+  /* Restore padding for inner divs to simulate top/bottom margin */
   #print-version > div {
     padding: 0.5cm 0;
   }
 
-  /* Hide the on-screen display within the summary page */
+  /* Hide elements with no-print class */
   .no-print {
     display: none !important;
   }
 
-  /* Re-apply specific layout styles for print elements */
+  /* Print Layout Structure */
   #print-header {
     position: relative;
     text-align: center;
-    min-height: 40px; /* Reduced height */
+    min-height: 40px;
   }
   #print-header-logo {
     position: absolute;
-    left: 0; /* Original style used left:0 for logo, right:0 was generated incorrectly in previous step */
+    left: 0;
     top: 0;
-    width: 100px; /* Reduced logo size */
+    width: 100px;
   }
   #print-header-text {
     display: inline-block;
@@ -105,7 +127,7 @@ body {
     margin: 0;
   }
   #print-title {
-    margin-bottom: 1cm; /* Increased margin */
+    margin-bottom: 1cm;
     text-align: center;
   }
   #print-title h2 {
@@ -114,15 +136,15 @@ body {
     margin: 0;
   }
   #print-title p {
-    margin-bottom: 1cm; /* Increased margin */
+    margin-bottom: 1cm;
     font-size: 0.8rem;
     margin: 0;
   }
   #print-details {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 0.1rem 1rem; /* Reduced gap */
-    margin-bottom: 0.5cm; /* Increased margin */
+    gap: 0.1rem 1rem;
+    margin-bottom: 0.5cm;
     font-size: 0.8rem;
   }
   #print-details div {
@@ -132,18 +154,20 @@ body {
     width: 90px;
     display: inline-block;
   }
+
+  /* Print Table Styles */
   #print-table table {
     table-layout: fixed;
     width: 100%;
     border-collapse: collapse;
-    font-size: 7pt; /* Reduced table font size */
+    font-size: 7pt;
   }
   #print-table th,
   #print-table td {
     border: 1px solid black;
-    padding: 1px; /* Reduced padding */
+    padding: 1px;
     text-align: center;
-    height: 14px; /* Reduced height */
+    height: 14px;
     word-wrap: break-word;
   }
   #print-table th {
@@ -152,6 +176,7 @@ body {
   }
   #print-table tfoot td {
     background-color: #d2c699 !important;
+    font-weight: bold;
   }
   #print-table tbody tr:nth-child(even) {
     background-color: #f2f2f2 !important;
@@ -169,12 +194,14 @@ body {
   #print-table .supplier-name {
     text-align: left;
   }
+
+  /* Print Footer (2x2 Grid Layout) */
   #print-footer {
-    margin-top: 3rem; /* Increased margin for 4-line space */
+    margin-top: 3rem;
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     grid-template-rows: repeat(2, auto);
-    gap: 2.5rem 10rem; /* Reduced gap */
+    gap: 2.5rem 10rem;
     text-align: center;
     font-size: 0.8rem;
   }
@@ -182,10 +209,10 @@ body {
     font-weight: bold;
   }
   #print-footer .signature-box {
-    margin-bottom: 1rem; /* Increased margin */
+    margin-bottom: 1rem;
     border-top: 1px dotted black;
     padding-top: 2px;
-    margin-top: 0.3rem; /* Adjusted margin */
-    height: 5px; /* Adjusted height */
+    margin-top: 0.3rem;
+    height: 5px;
   }
 }

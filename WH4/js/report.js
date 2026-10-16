@@ -12,6 +12,13 @@ import {
 
 // --- IMPORT จากไฟล์กลาง ---
 import { auth, db, appId } from "./firebase-config.js";
+import {
+  QTY_FIELDS,
+  escapeHtml,
+  buildRangeDate,
+  csvCell,
+  downloadTextFile,
+} from "./utils.js";
 
 let masterDataCache = { companies: new Set(), zones: new Set() };
 let hasReportData = false;
@@ -86,35 +93,37 @@ const showTableMessage = (msg, isError = false) => {
 const getCurrentFilters = () => ({
   company: document.getElementById("filter-company").value,
   zone: document.getElementById("filter-zone").value,
+  status: document.getElementById("filter-status").value,
   search: document.getElementById("filter-search").value.trim().toLowerCase(),
 });
 
 const handleFetchReport = async () => {
   const sDate = document.getElementById("start-date").value;
-  const sTime = document.getElementById("start-time").value || "00:00";
+  const sTime = document.getElementById("start-time").value;
   const eDate = document.getElementById("end-date").value;
-  const eTime = document.getElementById("end-time").value || "23:59";
-  const status = document.getElementById("filter-status").value;
+  const eTime = document.getElementById("end-time").value;
 
   if (!sDate || !eDate) return showModal("Please select dates.");
-  const start = new Date(`${sDate}T${sTime}`);
-  const end = new Date(`${eDate}T${eTime}`);
+  // End time covers its whole minute (23:59 -> 23:59:59.999); before, a
+  // gatepass issued at e.g. 23:59:30 fell outside the report.
+  const start = buildRangeDate(sDate, sTime, false);
+  const end = buildRangeDate(eDate, eTime, true);
   if (end < start) return showModal("End date cannot be before start date.");
 
-  // Only filter the query itself by the date range (and status, which is
-  // reliably present on every gatepass document). Company/Zone/Search are
-  // NOT filtered here in the query: "Empty-IN" gatepasses (from
+  // Only filter the query itself by the date range. Status/Company/Zone/
+  // Search are NOT filtered here in the query: "Empty-IN" gatepasses (from
   // gatepass-in.js) never carry a top-level company/zone field, and even
   // "Empty-Out" gatepasses store company/zone per-supplier, not necessarily
   // as a single doc-wide value. Filtering with a doc-level where() on those
   // fields would silently drop records that legitimately match. Those
   // filters are instead applied client-side in renderReport below, against
   // the cached results, so changing them afterwards doesn't need a re-fetch.
+  // (Status used to be a where() here, which also needs an extra composite
+  // index together with the issueDate range.)
   const constraints = [
     where("issueDate", ">=", start),
     where("issueDate", "<=", end),
   ];
-  if (status !== "all") constraints.push(where("status", "==", status));
 
   setFetchingState(true);
   showTableMessage("Loading report...");
@@ -148,17 +157,19 @@ const rerenderFromCache = () => {
 
 const renderReport = (
   docs,
-  filters = { company: "all", zone: "all", search: "" }
+  filters = { company: "all", zone: "all", status: "all", search: "" }
 ) => {
   const supTotals = {};
   const zoneTotals = {};
   const grand = { ptb: 0, cpb: 0, mov: 0, stp: 0, pl: 0, rp: 0 };
-  const keys = ["ptb", "cpb", "mov", "stp", "pl", "rp"];
+  const keys = QTY_FIELDS;
   const search = (filters.search || "").trim().toLowerCase();
   let matchedRows = 0;
 
   docs.forEach((doc) => {
     const d = doc.data();
+    if (filters.status && filters.status !== "all" && d.status !== filters.status)
+      return;
     // Fields that live on the gatepass doc itself, searchable regardless of
     // which supplier row they end up matching against.
     const docSearchable = [
@@ -239,14 +250,15 @@ const renderReport = (
   sorted.forEach((d) => {
     const tr = document.createElement("tr");
     tr.className = "border-b border-gray-200 hover:bg-gray-50";
-    const statusBadge =
+    const badgeColor =
       d.status === "Empty-Out"
-        ? `<span class="px-2 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">${d.status}</span>`
+        ? "bg-amber-100 text-amber-700"
         : d.status === "Empty-IN"
-        ? `<span class="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">${d.status}</span>`
-        : `<span class="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">${d.status}</span>`;
+        ? "bg-green-100 text-green-700"
+        : "bg-gray-100 text-gray-700";
+    const statusBadge = `<span class="px-2 py-1 rounded-full text-xs font-semibold ${badgeColor}">${escapeHtml(d.status)}</span>`;
     tr.innerHTML =
-      `<td class="py-3 px-4">${statusBadge}</td><td class="py-3 px-4">${d.company}</td><td class="py-3 px-4">${d.zone}</td><td class="py-3 px-4">${d.supplier}</td>` +
+      `<td class="py-3 px-4">${statusBadge}</td><td class="py-3 px-4">${escapeHtml(d.company)}</td><td class="py-3 px-4">${escapeHtml(d.zone)}</td><td class="py-3 px-4">${escapeHtml(d.supplier)}</td>` +
       keys
         .map((k) => `<td class="py-3 px-4">${d[k].toLocaleString()}</td>`)
         .join("");
@@ -259,7 +271,7 @@ const renderReport = (
       const tr = document.createElement("tr");
       tr.className = "bg-indigo-50";
       tr.innerHTML =
-        `<td class="py-3 px-4 text-right font-semibold" colspan="4">Zone: ${z}</td>` +
+        `<td class="py-3 px-4 text-right font-semibold" colspan="4">Zone: ${escapeHtml(z)}</td>` +
         keys
           .map(
             (k) =>
@@ -333,16 +345,17 @@ const exportCSV = () => {
       rows.push(["", "", "", label, ...values]);
     });
 
+  // Numbers on screen use thousands separators ("1,234"); export plain
+  // numbers so Excel can sum them.
+  const plain = (c, i) =>
+    i >= 4 && /^-?[\d,]+(\.\d+)?$/.test(c) ? c.replace(/,/g, "") : c;
   const csv =
-    "\uFEFF" + rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
+    "\uFEFF" +
+    rows.map((r) => r.map((c, i) => csvCell(plain(c, i))).join(",")).join("\n") +
+    "\n";
   const sDate = document.getElementById("start-date").value || "start";
   const eDate = document.getElementById("end-date").value || "end";
-  a.download = `report_${sDate}_to_${eDate}.csv`;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  downloadTextFile(csv, `report_${sDate}_to_${eDate}.csv`);
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -379,6 +392,9 @@ document.addEventListener("DOMContentLoaded", () => {
     .addEventListener("change", rerenderFromCache);
   document
     .getElementById("filter-zone")
+    .addEventListener("change", rerenderFromCache);
+  document
+    .getElementById("filter-status")
     .addEventListener("change", rerenderFromCache);
   // Free-text search (Supplier / Truck No / Driver / Gatepass No / Seal No /
   // Company / Zone / Status) — debounced so it doesn't re-render on every

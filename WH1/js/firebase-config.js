@@ -30,5 +30,12 @@ try {
   console.error("Firebase initialization failed in config:", error);
 }
 
+// --- Site Settings ---
+// ค่าที่ต่างกันในแต่ละคลัง (WH1 / WH4 / GW) อยู่ที่นี่ที่เดียว
+// gatepassPrefix ใช้สร้างเลขที่ Gatepass: YYYYMMDD-<prefix>-001
+const siteConfig = {
+  gatepassPrefix: "LDC-SR-WH1",
+};
+
 // Export ตัวแปรเพื่อให้ไฟล์อื่นเรียกใช้ได้ทันที
-export { app, auth, db, appId };
+export { app, auth, db, appId, siteConfig };

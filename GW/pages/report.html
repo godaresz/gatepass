@@ -10,6 +10,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="../css/report.css" />
+    <link rel="stylesheet" href="../css/responsive.css" />
   </head>
   <body class="bg-gray-100 min-h-screen antialiased text-gray-800">
     <div
@@ -34,7 +35,13 @@
               class="w-32 logo-blend"
               onerror="this.onerror=null;this.src='https://placehold.co/128x51/ffffff/334155?text=Logo';"
             />
-            <div class="flex items-center space-x-2">
+            <div class="flex items-center space-x-2 no-print">
+              <button
+                id="print-report-btn"
+                class="bg-slate-600 text-white px-4 py-2 rounded-lg shadow-md hover:bg-slate-700 transition-colors duration-200 text-sm"
+              >
+                Print
+              </button>
               <button
                 id="export-report-csv-btn"
                 class="bg-blue-500 text-white px-4 py-2 rounded-lg shadow-md hover:bg-blue-600 transition-colors duration-200 text-sm"
@@ -51,7 +58,7 @@
         </div>
 
         <div
-          class="grid grid-cols-1 md:grid-cols-8 gap-4 mb-6 items-end p-4 border rounded-lg bg-gray-50"
+          class="no-print grid grid-cols-1 md:grid-cols-8 gap-4 mb-6 items-end p-4 border rounded-lg bg-gray-50"
         >
           <div>
             <label
@@ -103,6 +110,21 @@
           </div>
           <div>
             <label
+              for="filter-status"
+              class="block text-sm font-medium text-gray-700"
+              >Status</label
+            >
+            <select
+              id="filter-status"
+              class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="all">All</option>
+              <option value="Empty-Out">Empty-Out</option>
+              <option value="Empty-IN">Empty-IN</option>
+            </select>
+          </div>
+          <div>
+            <label
               for="filter-company"
               class="block text-sm font-medium text-gray-700"
               >Company</label
@@ -127,9 +149,22 @@
               <option value="all">All</option>
             </select>
           </div>
+          <div class="md:col-span-2">
+            <label
+              for="filter-search"
+              class="block text-sm font-medium text-gray-700"
+              >Search (Supplier / Truck No / etc.)</label
+            >
+            <input
+              type="text"
+              id="filter-search"
+              placeholder="e.g. supplier name, truck plate, driver, gatepass no..."
+              class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
           <button
             id="fetch-report-btn"
-            class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 h-10"
+            class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 h-10 disabled:opacity-60"
           >
             Fetch Report
           </button>
@@ -140,6 +175,8 @@
             Clear
           </button>
         </div>
+
+        <div id="report-result-count" class="text-sm text-gray-500 mb-2"></div>
 
         <div id="report-table-container">
           <table class="min-w-full bg-white">
@@ -201,5 +238,7 @@
     </div>
 
     <script type="module" src="../js/report.js"></script>
+  	<script src="../js/responsive.js" defer></script>
+  	<script src="../js/date-ddmmyyyy.js" defer></script>
   </body>
 </html>

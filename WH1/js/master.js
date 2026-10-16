@@ -17,6 +17,35 @@ import {
 
 // --- IMPORT จากไฟล์กลาง ---
 import { auth, db, appId } from "./firebase-config.js";
+import {
+	escapeHtml,
+	csvCell,
+	parseCsvText,
+	downloadTextFile,
+	toLocalDateKey,
+	commitInChunks,
+} from "./utils.js";
+
+const MASTER_FIELDS = [
+	"milkRunCompany",
+	"zone1",
+	"issueBy",
+	"supplier",
+	"company",
+	"zone2",
+];
+
+// Reads one table row into a plain object (values trimmed).
+const readMasterRow = (row) => {
+	const rowData = {};
+	row.querySelectorAll("input[data-field]").forEach((input) => {
+		rowData[input.dataset.field] = input.value.trim();
+	});
+	return rowData;
+};
+
+const isBlankMasterRow = (rowData) =>
+	MASTER_FIELDS.every((f) => !String(rowData[f] || "").trim());
 
 let masterData = [];
 let loggedInUser = null;
@@ -116,31 +145,18 @@ const setupIdleListeners = () => {
 // --- Sort Helpers ---
 
 // ฟังก์ชันสำหรับดึงข้อมูลปัจจุบันจากตาราง (Sync ข้อมูลที่ User อาจจะพิมพ์แก้ไว้ก่อน Sort)
+// ใช้ตารางบนหน้าจอเป็นหลักทั้งหมด: แถวที่เพิ่มใหม่ (ยังไม่ Save / มาจาก CSV)
+// จะไม่หาย และแถวที่กดลบไปแล้วจะไม่กลับมาอีกหลัง Sort
 const syncTableData = () => {
 	const rows = document.querySelectorAll("#master-table-body tr");
-	// สร้าง Map ของข้อมูลปัจจุบันใน DOM โดยใช้ ID เป็น Key
-	const domDataMap = new Map();
-	rows.forEach((row) => {
-		if (row.dataset.id) {
-			const rowData = {};
-			row.querySelectorAll("input[data-field]").forEach((input) => {
-				rowData[input.dataset.field] = input.value;
-			});
-			domDataMap.set(row.dataset.id, rowData);
-		}
-	});
-
-	// อัปเดต masterData ด้วยข้อมูลล่าสุดจาก DOM
-	masterData = masterData.map((item) => {
-		if (domDataMap.has(item.id)) {
-			const updates = domDataMap.get(item.id);
-			// คำนวณ Check ใหม่ด้วย
-			const newCheck = (
-				(updates.company || "") + (updates.supplier || "")
-			).toUpperCase();
-			return { ...item, ...updates, check: newCheck };
-		}
-		return item;
+	masterData = Array.from(rows).map((row, index) => {
+		const rowData = readMasterRow(row);
+		return {
+			id: row.dataset.id || "",
+			...rowData,
+			check: ((rowData.company || "") + (rowData.supplier || "")).toUpperCase(),
+			order: index,
+		};
 	});
 };
 
@@ -389,29 +405,29 @@ const createMasterRowElement = (id = "", data = {}) => {
 	if (id) newRow.dataset.id = id;
 
 	newRow.innerHTML = `
-          <td class="p-2"><input type="text" autocomplete="off" class="uppercase-input w-full p-1 border rounded" data-field="milkRunCompany" value="${
+          <td class="p-2"><input type="text" autocomplete="off" class="uppercase-input w-full p-1 border rounded" data-field="milkRunCompany" value="${escapeHtml(
 						data.milkRunCompany || ""
-					}"></td>
-          <td class="p-2"><input type="text" autocomplete="off" class="uppercase-input w-full p-1 border rounded" data-field="zone1" value="${
+					)}"></td>
+          <td class="p-2"><input type="text" autocomplete="off" class="uppercase-input w-full p-1 border rounded" data-field="zone1" value="${escapeHtml(
 						data.zone1 || ""
-					}"></td>
-          <td class="p-2"><input type="text" autocomplete="off" class="uppercase-input w-full p-1 border rounded" data-field="issueBy" value="${
+					)}"></td>
+          <td class="p-2"><input type="text" autocomplete="off" class="uppercase-input w-full p-1 border rounded" data-field="issueBy" value="${escapeHtml(
 						data.issueBy || ""
-					}"></td>
-          <td class="p-2"><input type="text" autocomplete="off" class="uppercase-input w-full p-1 border rounded" data-field="supplier" value="${
+					)}"></td>
+          <td class="p-2"><input type="text" autocomplete="off" class="uppercase-input w-full p-1 border rounded" data-field="supplier" value="${escapeHtml(
 						data.supplier || ""
-					}"></td>
-          <td class="p-2 bg-gray-100" data-field-display="check">${
+					)}"></td>
+          <td class="p-2 bg-gray-100" data-field-display="check">${escapeHtml(
 						data.check || (data.company || "") + (data.supplier || "")
-					}</td>
-          <td class="p-2"><input type="text" autocomplete="off" class="uppercase-input w-full p-1 border rounded" data-field="company" value="${
+					)}</td>
+          <td class="p-2"><input type="text" autocomplete="off" class="uppercase-input w-full p-1 border rounded" data-field="company" value="${escapeHtml(
 						data.company || ""
-					}"></td>
-          <td class="p-2"><input type="text" autocomplete="off" class="uppercase-input w-full p-1 border rounded" data-field="zone2" value="${
+					)}"></td>
+          <td class="p-2"><input type="text" autocomplete="off" class="uppercase-input w-full p-1 border rounded" data-field="zone2" value="${escapeHtml(
 						data.zone2 || ""
-					}"></td>
+					)}"></td>
           <td class="p-2 text-center">
-              <button class="text-red-500 hover:text-red-700 remove-row-btn">
+              <button type="button" class="text-red-500 hover:text-red-700 remove-row-btn" title="Remove row">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 pointer-events-none" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>
               </button>
           </td>
@@ -470,53 +486,56 @@ const saveMasterData = async () => {
 					`artifacts/${appId}/public/data/master_data`
 				);
 
-				// 1. Delete existing
+				// Rows on screen -> documents. Existing rows keep their id
+				// (overwritten in place), new rows get a new id, blank rows
+				// are skipped.
+				const rows = Array.from(
+					document.querySelectorAll("#master-table-body tr")
+				);
+				const toWrite = [];
+				rows.forEach((row) => {
+					const rowData = readMasterRow(row);
+					if (isBlankMasterRow(rowData)) return;
+					rowData.check = (
+						(rowData.company || "") + (rowData.supplier || "")
+					).toUpperCase();
+					rowData.order = toWrite.length;
+					const ref = row.dataset.id
+						? doc(masterCollection, row.dataset.id)
+						: doc(masterCollection);
+					toWrite.push({ ref, rowData });
+				});
+
+				// Write first, delete afterwards: if the connection drops half
+				// way, the old data is still there instead of an empty master.
 				document.getElementById("progress-modal-title").textContent =
-					"Deleting old data...";
+					"Saving data...";
+				await commitInChunks(
+					db,
+					writeBatch,
+					toWrite,
+					(batch, item) => batch.set(item.ref, item.rowData),
+					(done, total) => updateProgress((done / total) * 90)
+				);
+
+				document.getElementById("progress-modal-title").textContent =
+					"Removing deleted rows...";
+				const keepIds = new Set(toWrite.map((item) => item.ref.id));
 				const existingDocsSnapshot = await getDocs(masterCollection);
-				if (existingDocsSnapshot.docs.length > 0) {
-					const deleteBatch = writeBatch(db);
-					existingDocsSnapshot.forEach((doc) => deleteBatch.delete(doc.ref));
-					await deleteBatch.commit();
-				}
+				const toDelete = existingDocsSnapshot.docs.filter(
+					(d) => !keepIds.has(d.id)
+				);
+				await commitInChunks(db, writeBatch, toDelete, (batch, d) =>
+					batch.delete(d.ref)
+				);
 
-				// 2. Add new data
-				updateProgress(0);
-				document.getElementById("progress-modal-title").textContent =
-					"Adding new data...";
-
-				const rows = document.querySelectorAll("#master-table-body tr");
-				if (rows.length > 0) {
-					let batch = writeBatch(db);
-					let count = 0;
-					const totalRows = rows.length;
-
-					for (let i = 0; i < totalRows; i++) {
-						const row = rows[i];
-						const newDocRef = doc(masterCollection);
-						const rowData = {};
-						row.querySelectorAll("input[data-field]").forEach((input) => {
-							rowData[input.dataset.field] = input.value;
-						});
-						rowData.check = (
-							(rowData.company || "") + (rowData.supplier || "")
-						).toUpperCase();
-						rowData.order = i;
-						batch.set(newDocRef, rowData);
-						count++;
-
-						if (count === 500) {
-							await batch.commit();
-							batch = writeBatch(db);
-							count = 0;
-							updateProgress((i / totalRows) * 100);
-						}
-					}
-					if (count > 0) await batch.commit();
-				}
 				updateProgress(100);
 				hideProgressModal();
-				showModal("Master data saved successfully!", "Success", true);
+				showModal(
+					`Master data saved successfully! (${toWrite.length} rows)`,
+					"Success",
+					true
+				);
 				await fetchAndRenderMasterData();
 			} catch (error) {
 				hideProgressModal();
@@ -581,7 +600,10 @@ const deleteAllMasterData = async () => {
 
 const exportMasterToCSV = () => {
 	const now = new Date();
-	const timestamp = now.toISOString().slice(0, 16).replace(/[-T:]/g, "");
+	const timestamp =
+		toLocalDateKey(now) +
+		String(now.getHours()).padStart(2, "0") +
+		String(now.getMinutes()).padStart(2, "0");
 	const filename = `master_data_${timestamp}.csv`;
 	const headers = [
 		"MILK RUN COMPANY",
@@ -594,40 +616,33 @@ const exportMasterToCSV = () => {
 	];
 	const rows = Array.from(document.querySelectorAll("#master-table-body tr"));
 
-	let csvContent = "\uFEFF" + headers.join(",") + "\n";
+	// Export should include hidden rows (filtered out rows)
+	const lines = [headers.map(csvCell).join(",")];
 	rows.forEach((row) => {
-		// Export should include hidden rows (filtered out rows)
-		const rowData = [];
-		rowData.push(
-			`"${row.querySelector('input[data-field="milkRunCompany"]').value}"`
+		const value = (field) =>
+			row.querySelector(`input[data-field="${field}"]`).value;
+		lines.push(
+			[
+				value("milkRunCompany"),
+				value("zone1"),
+				value("issueBy"),
+				value("supplier"),
+				row.querySelector('td[data-field-display="check"]').textContent,
+				value("company"),
+				value("zone2"),
+			]
+				.map(csvCell)
+				.join(",")
 		);
-		rowData.push(`"${row.querySelector('input[data-field="zone1"]').value}"`);
-		rowData.push(`"${row.querySelector('input[data-field="issueBy"]').value}"`);
-		rowData.push(
-			`"${row.querySelector('input[data-field="supplier"]').value}"`
-		);
-		rowData.push(
-			`"${row.querySelector('td[data-field-display="check"]').textContent}"`
-		);
-		rowData.push(`"${row.querySelector('input[data-field="company"]').value}"`);
-		rowData.push(`"${row.querySelector('input[data-field="zone2"]').value}"`);
-		csvContent += rowData.join(",") + "\n";
 	});
 
-	const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-	const link = document.createElement("a");
-	if (link.download !== undefined) {
-		const url = URL.createObjectURL(blob);
-		link.setAttribute("href", url);
-		link.setAttribute("download", filename);
-		document.body.appendChild(link);
-		link.click();
-		document.body.removeChild(link);
-	}
+	downloadTextFile("\uFEFF" + lines.join("\n") + "\n", filename);
 };
 
 const handleCsvUpload = (event) => {
 	const file = event.target.files[0];
+	// Reset the input so choosing the same file again still fires "change".
+	event.target.value = null;
 	if (!file) return;
 
 	showConfirmModal(
@@ -635,8 +650,8 @@ const handleCsvUpload = (event) => {
 		() => {
 			const reader = new FileReader();
 			reader.onload = async (e) => {
-				const text = e.target.result;
-				const rows = text.split(/\r?\n/).filter((row) => row.trim() !== "");
+				// Real CSV parsing: a quoted value may contain commas.
+				const rows = parseCsvText(e.target.result);
 				if (rows.length <= 1)
 					return showModal(
 						"CSV file is empty or contains only a header.",
@@ -647,11 +662,11 @@ const handleCsvUpload = (event) => {
 				tableBody.innerHTML = "";
 				showProgressModal("Loading data from CSV...");
 				const fragment = document.createDocumentFragment();
+				let loaded = 0;
 
 				for (let i = 1; i < rows.length; i++) {
-					const cols = rows[i]
-						.split(",")
-						.map((col) => col.trim().replace(/"/g, ""));
+					const cols = rows[i].map((col) => String(col ?? "").trim());
+					// Same column layout as "Export CSV" (column 5 = Check, rebuilt).
 					const data = {
 						milkRunCompany: cols[0] || "",
 						zone1: cols[1] || "",
@@ -660,7 +675,10 @@ const handleCsvUpload = (event) => {
 						company: cols[5] || "",
 						zone2: cols[6] || "",
 					};
-					fragment.appendChild(createMasterRowElement("", data));
+					if (!isBlankMasterRow(data)) {
+						fragment.appendChild(createMasterRowElement("", data));
+						loaded++;
+					}
 					if (i % 100 === 0) {
 						updateProgress(((i + 1) / rows.length) * 100);
 						await new Promise((resolve) => setTimeout(resolve, 0));
@@ -669,15 +687,15 @@ const handleCsvUpload = (event) => {
 				tableBody.appendChild(fragment);
 				hideProgressModal();
 				showModal(
-					'CSV data loaded. Please review and click "Save Changes".',
+					`CSV data loaded (${loaded} rows). Please review and click "Save Changes".`,
 					"Upload Complete",
 					true
 				);
 			};
+			reader.onerror = () => showModal("Could not read the selected file.");
 			reader.readAsText(file, "UTF-8");
 		}
 	);
-	event.target.value = null;
 };
 
 // --- Auth Functions ---

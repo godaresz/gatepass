@@ -19,11 +19,24 @@ thead {
 #alert-modal {
   z-index: 60;
 }
-.no-print {
-  display: block;
-}
 @media print {
   .no-print {
     display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  #summary-report-page {
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  #report-table-container {
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+  }
+  thead {
+    position: static !important;
   }
 }

@@ -23,6 +23,17 @@ import {
 
 // --- IMPORT จากไฟล์กลาง ---
 import { auth, db, appId } from "./firebase-config.js";
+import {
+  QTY_FIELDS,
+  EMPTY_VEHICLE,
+  escapeHtml,
+  toLocalDateKey,
+  buildRangeDate,
+  sumQty,
+  csvCell,
+  downloadTextFile,
+  commitInChunks,
+} from "./utils.js";
 
 let loggedInUser = null;
 const SESSION_KEY = "gatepass_user_session";
@@ -108,20 +119,6 @@ const formatDateEN = (dateObj) => {
   return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
 };
 
-const downloadCSV = (csvContent, filename) => {
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  const link = document.createElement("a");
-  if (link.download !== undefined) {
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", filename);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }
-};
-
 // --- Auto Logout Logic ---
 const resetIdleTimer = () => {
   if (idleTimer) clearTimeout(idleTimer);
@@ -143,6 +140,9 @@ const setupIdleListeners = () => {
 
 // --- Record/History Logic ---
 
+const HISTORY_PAGE_SIZE = 50;
+const GATEPASSES_PATH = () => `artifacts/${appId}/public/data/gatepasses`;
+
 const clearHistoryFilters = () => {
   document.getElementById("search-input").value = "";
   document.getElementById("filter-start-date").value = "";
@@ -155,6 +155,84 @@ const clearHistoryFilters = () => {
   document.getElementById("filter-history-supplier").value = "";
   document.getElementById("filter-history-status").value = "all";
   fetchAndRenderHistory(true);
+};
+
+// Reads every filter box once. Used by the table, "Load All" and the CSV
+// export so all three always show the same records.
+const getHistoryFilters = () => ({
+  startDate: document.getElementById("filter-start-date").value,
+  startTime: document.getElementById("filter-start-time").value,
+  endDate: document.getElementById("filter-end-date").value,
+  endTime: document.getElementById("filter-end-time").value,
+  truckNo: document
+    .getElementById("filter-history-truckNo")
+    .value.trim()
+    .toLowerCase(),
+  company: document
+    .getElementById("filter-history-company")
+    .value.trim()
+    .toUpperCase(),
+  zone: document.getElementById("filter-history-zone").value.trim().toUpperCase(),
+  supplier: document
+    .getElementById("filter-history-supplier")
+    .value.trim()
+    .toUpperCase(),
+  status: document.getElementById("filter-history-status").value,
+  search: document.getElementById("search-input").value.trim().toLowerCase(),
+});
+
+// Date range is filtered on the server (works with orderBy issueDate).
+const buildDateConstraints = (f) => {
+  const constraints = [orderBy("issueDate", "desc")];
+  const start = buildRangeDate(f.startDate, f.startTime, false);
+  const end = buildRangeDate(f.endDate, f.endTime, true);
+  if (start) constraints.push(where("issueDate", ">=", start));
+  if (end) constraints.push(where("issueDate", "<=", end));
+  return constraints;
+};
+
+const upper = (v) => String(v ?? "").trim().toUpperCase();
+
+// Company / Zone may live on the gatepass itself (Empty-Out) or only on
+// each supplier line (Empty-IN), so both places are checked.
+const docMatchesFilters = (doc, f) => {
+  const suppliers = doc.suppliers || [];
+  if (f.truckNo && !String(doc.truckNo || "").toLowerCase().includes(f.truckNo))
+    return false;
+  if (f.status !== "all" && doc.status !== f.status) return false;
+  if (
+    f.company &&
+    upper(doc.company) !== f.company &&
+    !suppliers.some((s) => upper(s.company) === f.company)
+  )
+    return false;
+  if (
+    f.zone &&
+    upper(doc.zone) !== f.zone &&
+    !suppliers.some((s) => upper(s.zone) === f.zone)
+  )
+    return false;
+  if (f.supplier && !suppliers.some((s) => upper(s.name) === f.supplier))
+    return false;
+
+  if (f.search) {
+    const haystack = [
+      doc.gatepassNo,
+      doc.truckNo,
+      doc.company,
+      doc.zone,
+      doc.driverName,
+      doc.issueBy,
+      doc.sealNo,
+      doc.status,
+      ...suppliers.flatMap((s) => [s.name, s.company, s.zone]),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    if (!haystack.includes(f.search)) return false;
+  }
+  return true;
 };
 
 const fetchAndRenderHistory = async (isNewSearch = false) => {
@@ -177,46 +255,26 @@ const fetchAndRenderHistory = async (isNewSearch = false) => {
   loadMoreBtn.classList.add("hidden");
   loadAllBtn.classList.add("hidden");
 
-  // 1. Initial Query Setup
-  const gatepassesCollection = collection(
-    db,
-    `artifacts/${appId}/public/data/gatepasses`
-  );
-
-  // Start with basic ordering
-  let queryConstraints = [orderBy("issueDate", "desc")];
-
-  // -- Server-Side Filtering (Use cautiously without indexes) --
-  // Only applying date range server-side usually works well with orderBy('issueDate')
-  const startDate = document.getElementById("filter-start-date").value;
-  const startTime = document.getElementById("filter-start-time").value;
-  const endDate = document.getElementById("filter-end-date").value;
-  const endTime = document.getElementById("filter-end-time").value;
-
-  if (startDate) {
-    const start = new Date(`${startDate}T${startTime || "00:00:00"}`);
-    queryConstraints.push(where("issueDate", ">=", start));
-  }
-  if (endDate) {
-    const end = new Date(`${endDate}T${endTime || "23:59:59"}`);
-    queryConstraints.push(where("issueDate", "<=", end));
-  }
+  const filters = getHistoryFilters();
+  const queryConstraints = buildDateConstraints(filters);
 
   // Pagination
   if (lastVisibleDoc && !isNewSearch) {
     queryConstraints.push(startAfter(lastVisibleDoc));
   }
-  queryConstraints.push(limit(50)); // Increased limit slightly since we filter client-side
+  queryConstraints.push(limit(HISTORY_PAGE_SIZE));
 
   try {
-    const finalQuery = query(gatepassesCollection, ...queryConstraints);
+    const finalQuery = query(
+      collection(db, GATEPASSES_PATH()),
+      ...queryConstraints
+    );
     const querySnapshot = await getDocs(finalQuery);
 
     if (isNewSearch) historyTableBody.innerHTML = "";
 
     if (querySnapshot.empty && isNewSearch) {
       historyTableBody.innerHTML = `<tr><td colspan="17" class="py-4 text-center text-gray-500">No gatepasses found.</td></tr>`;
-      isFetchingHistory = false;
       return;
     }
 
@@ -224,94 +282,20 @@ const fetchAndRenderHistory = async (isNewSearch = false) => {
       lastVisibleDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
     }
 
-    const docsToRender = [];
-    querySnapshot.forEach((doc) =>
-      docsToRender.push({ id: doc.id, ...doc.data() })
-    );
+    const filteredDocs = querySnapshot.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((d) => docMatchesFilters(d, filters));
 
-    // 2. Client-Side Filtering
-    const truckNoFilter = document
-      .getElementById("filter-history-truckNo")
-      .value.trim()
-      .toLowerCase();
-    const companyFilter = document
-      .getElementById("filter-history-company")
-      .value.trim();
-    const zoneFilter = document
-      .getElementById("filter-history-zone")
-      .value.trim();
-    const statusFilter = document.getElementById("filter-history-status").value;
-    const supplierFilter = document
-      .getElementById("filter-history-supplier")
-      .value.trim();
-    const searchText = document
-      .getElementById("search-input")
-      .value.toLowerCase();
-
-    const filteredDocs = docsToRender.filter((doc) => {
-      let matches = true;
-
-      if (truckNoFilter && !doc.truckNo?.toLowerCase().includes(truckNoFilter))
-        matches = false;
-      if (companyFilter && doc.company !== companyFilter) matches = false;
-      if (zoneFilter && doc.zone !== zoneFilter) matches = false;
-      if (statusFilter !== "all" && doc.status !== statusFilter)
-        matches = false;
-
-      // Search text logic
-      if (searchText) {
-        const searchFields = [
-          doc.gatepassNo,
-          doc.truckNo,
-          doc.company,
-          doc.zone,
-          doc.driverName,
-          doc.issueBy,
-          doc.sealNo,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-
-        // Also check suppliers in search text
-        const supplierNames = (doc.suppliers || [])
-          .map((s) => s.name)
-          .join(" ")
-          .toLowerCase();
-
-        if (
-          !searchFields.includes(searchText) &&
-          !supplierNames.includes(searchText)
-        ) {
-          matches = false;
-        }
-      }
-
-      // Supplier Filter Logic
-      if (supplierFilter) {
-        const hasSupplier = (doc.suppliers || []).some(
-          (s) => s.name === supplierFilter
-        );
-        if (!hasSupplier) matches = false;
-      }
-
-      return matches;
-    });
-
-    if (isNewSearch && filteredDocs.length === 0) {
-      historyTableBody.innerHTML = `<tr><td colspan="17" class="py-4 text-center text-gray-500">No gatepasses found matching criteria.</td></tr>`;
-    } else {
+    if (filteredDocs.length > 0) {
       renderHistoryRows(filteredDocs, isNewSearch);
+    } else if (isNewSearch) {
+      historyTableBody.innerHTML = `<tr><td colspan="17" class="py-4 text-center text-gray-500">No gatepasses found matching criteria in the latest ${HISTORY_PAGE_SIZE} records. Use "Load More" / "Load All" to search older ones.</td></tr>`;
     }
 
-    // Show/Hide buttons based on raw snapshot size
-    if (querySnapshot.docs.length >= 20) {
-      loadMoreBtn.classList.remove("hidden");
-      loadAllBtn.classList.remove("hidden");
-    } else {
-      loadMoreBtn.classList.add("hidden");
-      loadAllBtn.classList.add("hidden");
-    }
+    // A full page means there may be more records on the server.
+    const hasMore = querySnapshot.docs.length === HISTORY_PAGE_SIZE;
+    loadMoreBtn.classList.toggle("hidden", !hasMore);
+    loadAllBtn.classList.toggle("hidden", !hasMore);
   } catch (error) {
     console.error("Error fetching history:", error);
     let msg = "Error fetching data.";
@@ -327,6 +311,10 @@ const fetchAndRenderHistory = async (isNewSearch = false) => {
 
 const renderHistoryRows = (docs, isNewSearch) => {
   const historyTableBody = document.getElementById("history-table-body");
+  // The "no match" placeholder row must not stay above real rows.
+  if (!isNewSearch && currentFilteredHistory.length === 0) {
+    historyTableBody.innerHTML = "";
+  }
   const fragment = document.createDocumentFragment();
   let newRowsData = [];
 
@@ -352,6 +340,8 @@ const renderHistoryRows = (docs, isNewSearch) => {
     return acc;
   }, {});
 
+  const qty = (v) => escapeHtml(Number(v) || 0);
+
   Object.values(groupedByGatepass).forEach((items) => {
     const rowspan = items.length > 1 ? `rowspan="${items.length}"` : "";
     items.forEach((data, index) => {
@@ -359,70 +349,65 @@ const renderHistoryRows = (docs, isNewSearch) => {
       const newRow = document.createElement("tr");
       newRow.className =
         "border-b border-gray-200 last:border-b-0 hover:bg-gray-100";
-      const issueDate = data.issueDate
+      const issueDate = data.issueDate?.toDate
         ? formatDateEN(data.issueDate.toDate())
         : "N/A";
+      const docId = escapeHtml(data.id);
 
       let rowHtml = "";
       if (index === 0) {
         rowHtml += `
                       <td class="py-3 px-4 text-left align-top" ${rowspan}>${issueDate}</td>
-                      <td class="py-3 px-4 text-left align-top" ${rowspan}>${
+                      <td class="py-3 px-4 text-left align-top" ${rowspan}>${escapeHtml(
           data.gatepassNo || "N/A"
-        }</td>
-                      <td class="py-3 px-4 text-left align-top" ${rowspan}>${
+        )}</td>
+                      <td class="py-3 px-4 text-left align-top" ${rowspan}>${escapeHtml(
           data.driverName || "N/A"
-        }</td>
-                      <td class="py-3 px-4 text-left align-top" ${rowspan}>${
+        )}</td>
+                      <td class="py-3 px-4 text-left align-top" ${rowspan}>${escapeHtml(
           data.truckNo || "N/A"
-        }</td>`;
+        )}</td>`;
       }
 
       const displayCompany = supplier.company || data.company || "";
       const displayZone = supplier.zone || data.zone || "";
 
       rowHtml += `
-                  <td class="py-3 px-4 text-left">${displayCompany}</td>
-                  <td class="py-3 px-4 text-left">${displayZone}</td>
-                  <td class="py-3 px-4 text-left">${supplier.name || ""}</td>
-                  <td class="py-3 px-4 text-left">${supplier.ptb || "0"}</td>
-                  <td class="py-3 px-4 text-left">${supplier.cpb || "0"}</td>
-                  <td class="py-3 px-4 text-left">${supplier.mov || "0"}</td>
-                  <td class="py-3 px-4 text-left">${supplier.stp || "0"}</td>
-                  <td class="py-3 px-4 text-left">${supplier.pl || "0"}</td>
-                  <td class="py-3 px-4 text-left">${supplier.rp || "0"}</td>`;
+                  <td class="py-3 px-4 text-left">${escapeHtml(displayCompany)}</td>
+                  <td class="py-3 px-4 text-left">${escapeHtml(displayZone)}</td>
+                  <td class="py-3 px-4 text-left">${escapeHtml(supplier.name || "")}</td>
+                  <td class="py-3 px-4 text-left">${qty(supplier.ptb)}</td>
+                  <td class="py-3 px-4 text-left">${qty(supplier.cpb)}</td>
+                  <td class="py-3 px-4 text-left">${qty(supplier.mov)}</td>
+                  <td class="py-3 px-4 text-left">${qty(supplier.stp)}</td>
+                  <td class="py-3 px-4 text-left">${qty(supplier.pl)}</td>
+                  <td class="py-3 px-4 text-left">${qty(supplier.rp)}</td>`;
 
       if (index === 0) {
         rowHtml += `
-                      <td class="py-3 px-4 text-left align-top" ${rowspan}>${
+                      <td class="py-3 px-4 text-left align-top" ${rowspan}>${escapeHtml(
           data.issueBy || "N/A"
-        }</td>
-                      <td class="py-3 px-4 text-left align-top" ${rowspan}>${
+        )}</td>
+                      <td class="py-3 px-4 text-left align-top" ${rowspan}>${escapeHtml(
           data.sealNo || "N/A"
-        }</td>
+        )}</td>
                       <td class="py-3 px-4 text-left align-top" ${rowspan}><span class="px-2 py-1 text-xs font-semibold rounded-full ${
           data.status === "Empty-Out"
             ? "bg-blue-100 text-blue-800"
             : "bg-green-100 text-green-800"
-        }">${data.status || "N/A"}</span></td>
+        }">${escapeHtml(data.status || "N/A")}</span></td>
                       <td class="py-3 px-4 text-center align-top" ${rowspan}>
                           <div class="flex items-center justify-center space-x-2">
-                              <button class="text-green-500 hover:text-green-700 edit-gatepass-btn" data-doc-id="${
-                                data.id
-                              }" title="Edit">
+                              <button class="text-green-500 hover:text-green-700 edit-gatepass-btn" data-doc-id="${docId}" title="Edit">
                                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
                                       <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
                                       <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" />
                                   </svg>
                               </button>
-                              <button class="text-indigo-500 hover:text-indigo-700 view-pdf-btn" data-doc-id="${
-                                data.id
-                              }" title="Print">
+                              <button class="text-indigo-500 hover:text-indigo-700 view-pdf-btn" data-doc-id="${docId}" title="Print">
                                   <img src="https://cdn-icons-png.freepik.com/512/8367/8367710.png" class="h-5 w-5 pointer-events-none" alt="Print Icon" onerror="this.onerror=null;this.src='https://placehold.co/20x20/ffffff/334155?text=P';">
                               </button>
-                              <button class="text-red-500 hover:text-red-700 delete-gatepass-btn" data-doc-id="${
-                                data.id
-                              }" title="Delete Gatepass">
+                              <button class="text-red-500 hover:text-red-700 delete-gatepass-btn" data-doc-id="${docId}" title="Delete Gatepass">
                                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 pointer-events-none" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
                               </button>
                           </div>
@@ -441,7 +426,7 @@ const updateHistoryTotals = () => {
   currentFilteredHistory.forEach((data) => {
     const supplier = data.supplier || {};
     Object.keys(totals).forEach(
-      (key) => (totals[key] += parseFloat(supplier[key]) || 0)
+      (key) => (totals[key] += Number(supplier[key]) || 0)
     );
   });
 
@@ -449,14 +434,25 @@ const updateHistoryTotals = () => {
   footer.innerHTML = `
           <tr>
               <td class="py-3 px-4 text-right" colspan="7">Total:</td>
-              <td id="history-total-ptb" class="py-3 px-4 text-left">${totals.ptb}</td>
-              <td id="history-total-cpb" class="py-3 px-4 text-left">${totals.cpb}</td>
-              <td id="history-total-mov" class="py-3 px-4 text-left">${totals.mov}</td>
-              <td id="history-total-stp" class="py-3 px-4 text-left">${totals.stp}</td>
-              <td id="history-total-pl" class="py-3 px-4 text-left">${totals.pl}</td>
-              <td id="history-total-rp" class="py-3 px-4 text-left">${totals.rp}</td>
+              <td id="history-total-ptb" class="py-3 px-4 text-left">${totals.ptb.toLocaleString()}</td>
+              <td id="history-total-cpb" class="py-3 px-4 text-left">${totals.cpb.toLocaleString()}</td>
+              <td id="history-total-mov" class="py-3 px-4 text-left">${totals.mov.toLocaleString()}</td>
+              <td id="history-total-stp" class="py-3 px-4 text-left">${totals.stp.toLocaleString()}</td>
+              <td id="history-total-pl" class="py-3 px-4 text-left">${totals.pl.toLocaleString()}</td>
+              <td id="history-total-rp" class="py-3 px-4 text-left">${totals.rp.toLocaleString()}</td>
               <td colspan="4"></td>
           </tr>`;
+};
+
+// All records in the date range that match the other filters.
+const fetchAllMatchingHistory = async () => {
+  const filters = getHistoryFilters();
+  const snapshot = await getDocs(
+    query(collection(db, GATEPASSES_PATH()), ...buildDateConstraints(filters))
+  );
+  return snapshot.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((d) => docMatchesFilters(d, filters));
 };
 
 const handleLoadAllHistory = async () => {
@@ -465,102 +461,16 @@ const handleLoadAllHistory = async () => {
   showProgressModal("Loading all history...");
 
   try {
-    const gatepassesCollection = collection(
-      db,
-      `artifacts/${appId}/public/data/gatepasses`
-    );
-    let queryConstraints = [orderBy("issueDate", "desc")];
-
-    const startDate = document.getElementById("filter-start-date").value;
-    const startTime = document.getElementById("filter-start-time").value;
-    const endDate = document.getElementById("filter-end-date").value;
-    const endTime = document.getElementById("filter-end-time").value;
-
-    if (startDate)
-      queryConstraints.push(
-        where(
-          "issueDate",
-          ">=",
-          new Date(`${startDate}T${startTime || "00:00:00"}`)
-        )
-      );
-    if (endDate)
-      queryConstraints.push(
-        where(
-          "issueDate",
-          "<=",
-          new Date(`${endDate}T${endTime || "23:59:59"}`)
-        )
-      );
-
-    const finalQuery = query(gatepassesCollection, ...queryConstraints);
-    const querySnapshot = await getDocs(finalQuery);
-
-    let allDocs = [];
-    querySnapshot.forEach((doc) => allDocs.push({ id: doc.id, ...doc.data() }));
-
-    const truckNoFilter = document
-      .getElementById("filter-history-truckNo")
-      .value.trim()
-      .toLowerCase();
-    const companyFilter = document
-      .getElementById("filter-history-company")
-      .value.trim();
-    const zoneFilter = document
-      .getElementById("filter-history-zone")
-      .value.trim();
-    const statusFilter = document.getElementById("filter-history-status").value;
-    const supplierFilter = document
-      .getElementById("filter-history-supplier")
-      .value.trim();
-    const searchText = document
-      .getElementById("search-input")
-      .value.toLowerCase();
-
-    const filteredDocs = allDocs.filter((doc) => {
-      let matches = true;
-      if (truckNoFilter && !doc.truckNo?.toLowerCase().includes(truckNoFilter))
-        matches = false;
-      if (companyFilter && doc.company !== companyFilter) matches = false;
-      if (zoneFilter && doc.zone !== zoneFilter) matches = false;
-      if (statusFilter !== "all" && doc.status !== statusFilter)
-        matches = false;
-
-      if (searchText) {
-        const searchFields = [
-          doc.gatepassNo,
-          doc.truckNo,
-          doc.company,
-          doc.zone,
-          doc.driverName,
-          doc.issueBy,
-          doc.sealNo,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        const supplierNames = (doc.suppliers || [])
-          .map((s) => s.name)
-          .join(" ")
-          .toLowerCase();
-        if (
-          !searchFields.includes(searchText) &&
-          !supplierNames.includes(searchText)
-        )
-          matches = false;
-      }
-
-      if (supplierFilter) {
-        const hasSupplier = (doc.suppliers || []).some(
-          (s) => s.name === supplierFilter
-        );
-        if (!hasSupplier) matches = false;
-      }
-      return matches;
-    });
-
-    document.getElementById("history-table-body").innerHTML = "";
-    renderHistoryRows(filteredDocs, true);
+    const filteredDocs = await fetchAllMatchingHistory();
+    const historyTableBody = document.getElementById("history-table-body");
+    historyTableBody.innerHTML = "";
+    if (filteredDocs.length === 0) {
+      currentFilteredHistory = [];
+      document.getElementById("history-table-footer").innerHTML = "";
+      historyTableBody.innerHTML = `<tr><td colspan="17" class="py-4 text-center text-gray-500">No gatepasses found matching criteria.</td></tr>`;
+    } else {
+      renderHistoryRows(filteredDocs, true);
+    }
     document
       .getElementById("clear-load-history-btn")
       .classList.remove("hidden");
@@ -587,9 +497,7 @@ const handleDeleteGatepass = async (button) => {
     "Are you sure you want to delete this gatepass record?",
     async () => {
       try {
-        await deleteDoc(
-          doc(db, `artifacts/${appId}/public/data/gatepasses`, docId)
-        );
+        await deleteDoc(doc(db, GATEPASSES_PATH(), docId));
         showModal("Gatepass deleted successfully.", "Success", true);
         fetchAndRenderHistory(true);
       } catch (error) {
@@ -604,7 +512,7 @@ const handleEditGatepass = async (button) => {
   const docId = button.dataset.docId;
   if (!docId) return;
   try {
-    const docRef = doc(db, `artifacts/${appId}/public/data/gatepasses`, docId);
+    const docRef = doc(db, GATEPASSES_PATH(), docId);
     const gatepassDoc = await getDoc(docRef);
     if (!gatepassDoc.exists()) {
       showModal("Could not find the selected gatepass data.");
@@ -624,33 +532,42 @@ const handleEditGatepass = async (button) => {
   }
 };
 
+const PRINT_MIN_ROWS = 30;
+
 const handleViewPdf = async (button) => {
   const docId = button.dataset.docId;
   if (!docId) return;
 
   try {
-    const docRef = doc(db, `artifacts/${appId}/public/data/gatepasses`, docId);
+    const docRef = doc(db, GATEPASSES_PATH(), docId);
     const gatepassDoc = await getDoc(docRef);
     if (!gatepassDoc.exists()) return showModal("Data not found.");
 
     const data = gatepassDoc.data();
-    const issueDate = data.issueDate ? data.issueDate.toDate() : new Date();
+    const issueDate = data.issueDate?.toDate ? data.issueDate.toDate() : new Date();
+    const suppliers = data.suppliers || [];
+    // Empty-IN gatepasses have no top-level company/zone; show the ones
+    // used by their supplier lines instead of a blank.
+    const joinUnique = (key) =>
+      [...new Set(suppliers.map((s) => s[key]).filter(Boolean))].join(", ");
+    const company = data.company || joinUnique("company");
+    const zone = data.zone || joinUnique("zone");
+    const setText = (id, value) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value ?? "";
+    };
 
-    document.getElementById("print-date").textContent =
-      formatDateEN(issueDate).split(" ")[0];
-    document.getElementById("print-gatepassId").textContent =
-      data.gatepassNo || "N/A";
-    document.getElementById("print-driverName").textContent = data.driverName;
-    document.getElementById("print-truckNo").textContent = data.truckNo;
-    document.getElementById("print-company").textContent = data.company;
-    document.getElementById("print-zone").textContent = data.zone;
-    document.getElementById("print-sealNo").textContent = data.sealNo;
-    document.getElementById("print-issue-datetime").textContent =
-      formatDateEN(issueDate);
-    document.getElementById("print-worker-name").textContent = data.issueBy;
-    document.getElementById("print-driver-signature").textContent =
-      data.driverName;
-    document.getElementById("print-driver-company").textContent = data.company;
+    setText("print-date", formatDateEN(issueDate).split(" ")[0]);
+    setText("print-gatepassId", data.gatepassNo || "N/A");
+    setText("print-driverName", data.driverName);
+    setText("print-truckNo", data.truckNo);
+    setText("print-company", company);
+    setText("print-zone", zone);
+    setText("print-sealNo", data.sealNo);
+    setText("print-issue-datetime", formatDateEN(issueDate));
+    setText("print-worker-name", data.issueBy);
+    setText("print-driver-signature", data.driverName);
+    setText("print-driver-company", company);
 
     const printTableBody = document.getElementById("print-supplier-table-body");
     printTableBody.innerHTML = "";
@@ -664,46 +581,21 @@ const handleViewPdf = async (button) => {
       grand: 0,
     };
 
-    for (let i = 0; i < 30; i++) {
-      const supplier = (data.suppliers || [])[i];
+    const rowCount = Math.max(PRINT_MIN_ROWS, suppliers.length);
+    for (let i = 0; i < rowCount; i++) {
+      const supplier = suppliers[i];
       const newRow = document.createElement("tr");
       if (supplier) {
-        const total =
-          (supplier.ptb || 0) +
-          (supplier.cpb || 0) +
-          (supplier.mov || 0) +
-          (supplier.stp || 0) +
-          (supplier.pl || 0) +
-          (supplier.rp || 0);
-        printTotals.ptb += supplier.ptb || 0;
-        printTotals.cpb += supplier.cpb || 0;
-        printTotals.mov += supplier.mov || 0;
-        printTotals.stp += supplier.stp || 0;
-        printTotals.pl += supplier.pl || 0;
-        printTotals.rp += supplier.rp || 0;
+        const total = sumQty(supplier);
+        QTY_FIELDS.forEach((k) => (printTotals[k] += Number(supplier[k]) || 0));
         printTotals.grand += total;
-        const isRottPlao = supplier.name === "รถเปล่า";
+        const isRottPlao = supplier.name === EMPTY_VEHICLE;
+        const cell = (k) =>
+          supplier[k] > 0 || isRottPlao ? escapeHtml(supplier[k] || 0) : "";
 
         newRow.innerHTML = `
-                      <td class="supplier-name">${supplier.name}</td>
-                      <td>${
-                        supplier.ptb > 0 || isRottPlao ? supplier.ptb || 0 : ""
-                      }</td>
-                      <td>${
-                        supplier.cpb > 0 || isRottPlao ? supplier.cpb || 0 : ""
-                      }</td>
-                      <td>${
-                        supplier.mov > 0 || isRottPlao ? supplier.mov || 0 : ""
-                      }</td>
-                      <td>${
-                        supplier.stp > 0 || isRottPlao ? supplier.stp || 0 : ""
-                      }</td>
-                      <td>${
-                        supplier.pl > 0 || isRottPlao ? supplier.pl || 0 : ""
-                      }</td>
-                      <td>${
-                        supplier.rp > 0 || isRottPlao ? supplier.rp || 0 : ""
-                      }</td>
+                      <td class="supplier-name">${escapeHtml(supplier.name)}</td>
+                      ${QTY_FIELDS.map((k) => `<td>${cell(k)}</td>`).join("")}
                       <td>${total > 0 || isRottPlao ? total : ""}</td>
                   `;
       } else {
@@ -746,14 +638,22 @@ const handleViewPdf = async (button) => {
     printVersion.classList.remove("hidden");
     if (printMessage) printMessage.classList.remove("hidden");
 
+    // Restore the screen once the print dialog is closed.
+    let restored = false;
+    const restore = () => {
+      if (restored) return;
+      restored = true;
+      window.removeEventListener("afterprint", restore);
+      printVersion.innerHTML = originalContent; // Restore single view
+      printVersion.classList.add("hidden");
+      if (printMessage) printMessage.classList.add("hidden");
+      historyPage.classList.remove("hidden");
+    };
+    window.addEventListener("afterprint", restore);
+
     setTimeout(() => {
       window.print();
-      setTimeout(() => {
-        printVersion.innerHTML = originalContent; // Restore single view
-        printVersion.classList.add("hidden");
-        if (printMessage) printMessage.classList.add("hidden");
-        historyPage.classList.remove("hidden");
-      }, 500);
+      setTimeout(restore, 500);
     }, 100);
   } catch (error) {
     console.error("Error printing:", error);
@@ -765,36 +665,8 @@ const exportHistoryToCSV = async () => {
   showConfirmModal("Export matching records to CSV?", async () => {
     showProgressModal("Exporting...");
     try {
-      const gatepassesCollection = collection(
-        db,
-        `artifacts/${appId}/public/data/gatepasses`
-      );
-      let queryConstraints = [orderBy("issueDate", "desc")];
-
-      const startDate = document.getElementById("filter-start-date").value;
-      const startTime = document.getElementById("filter-start-time").value;
-      const endDate = document.getElementById("filter-end-date").value;
-      const endTime = document.getElementById("filter-end-time").value;
-
-      if (startDate)
-        queryConstraints.push(
-          where(
-            "issueDate",
-            ">=",
-            new Date(`${startDate}T${startTime || "00:00:00"}`)
-          )
-        );
-      if (endDate)
-        queryConstraints.push(
-          where(
-            "issueDate",
-            "<=",
-            new Date(`${endDate}T${endTime || "23:59:59"}`)
-          )
-        );
-
-      const q = query(gatepassesCollection, ...queryConstraints);
-      const snapshot = await getDocs(q);
+      // Same filters as the table (incl. Supplier and Search).
+      const docs = await fetchAllMatchingHistory();
 
       const headers = [
         "Date",
@@ -814,38 +686,14 @@ const exportHistoryToCSV = async () => {
         "Seal No.",
         "Status",
       ];
-      let csv = "\uFEFF" + headers.join(",") + "\n";
+      const lines = [headers.join(",")];
 
-      const truckNoFilter = document
-        .getElementById("filter-history-truckNo")
-        .value.trim()
-        .toLowerCase();
-      const companyFilter = document
-        .getElementById("filter-history-company")
-        .value.trim();
-      const zoneFilter = document
-        .getElementById("filter-history-zone")
-        .value.trim();
-      const statusFilter = document.getElementById(
-        "filter-history-status"
-      ).value;
-
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-
-        if (
-          truckNoFilter &&
-          !data.truckNo?.toLowerCase().includes(truckNoFilter)
-        )
-          return;
-        if (companyFilter && data.company !== companyFilter) return;
-        if (zoneFilter && data.zone !== zoneFilter) return;
-        if (statusFilter !== "all" && data.status !== statusFilter) return;
-
-        const issueDate = data.issueDate
+      docs.forEach((data) => {
+        const issueDate = data.issueDate?.toDate
           ? formatDateEN(data.issueDate.toDate())
           : "N/A";
-        (data.suppliers || [{}]).forEach((s) => {
+        const suppliers = data.suppliers?.length ? data.suppliers : [{}];
+        suppliers.forEach((s) => {
           const row = [
             issueDate,
             data.gatepassNo,
@@ -854,28 +702,24 @@ const exportHistoryToCSV = async () => {
             s.company || data.company,
             s.zone || data.zone,
             s.name,
-            s.ptb || 0,
-            s.cpb || 0,
-            s.mov || 0,
-            s.stp || 0,
-            s.pl || 0,
-            s.rp || 0,
+            // Quantities are written as numbers so 0 is exported as "0".
+            ...QTY_FIELDS.map((k) => Number(s[k]) || 0),
             data.issueBy,
             data.sealNo,
             data.status,
           ];
-          csv +=
-            row
-              .map((v) => `"${String(v || "").replace(/"/g, '""')}"`)
-              .join(",") + "\n";
+          lines.push(row.map(csvCell).join(","));
         });
       });
 
-      downloadCSV(
-        csv,
-        `gatepass_history_${new Date().toISOString().slice(0, 10)}.csv`
+      downloadTextFile(
+        "﻿" + lines.join("\n") + "\n",
+        `gatepass_history_${toLocalDateKey(new Date())}.csv`
       );
       hideProgressModal();
+      if (docs.length === 0) {
+        showModal("No records matched the current filters; the CSV only has a header.", "Info", true);
+      }
     } catch (e) {
       console.error(e);
       hideProgressModal();
@@ -884,10 +728,268 @@ const exportHistoryToCSV = async () => {
   });
 };
 
-const handleHistoryCsvUpload = (event) => {
-  alert(
-    "Functionality available in original script. Please migrate full CSV upload logic if needed."
+// --- CSV IMPORT -------------------------------------------------------
+// Imports gatepass history from a CSV that uses the same column layout as
+// "Export to CSV". Rows are grouped by Gatepass No., and a Gatepass No.
+// that already exists in Firestore is skipped, so the same file can be
+// uploaded twice without creating duplicates.
+const CSV_COLUMN_ALIASES = {
+  date: "date",
+  issuedate: "date",
+  gatepassno: "gatepassNo",
+  gatepass: "gatepassNo",
+  drivername: "driverName",
+  driver: "driverName",
+  truckno: "truckNo",
+  truck: "truckNo",
+  company: "company",
+  zone: "zone",
+  supplier: "supplier",
+  suppliername: "supplier",
+  ptb: "ptb",
+  cpb: "cpb",
+  mov: "mov",
+  stp: "stp",
+  pl: "pl",
+  rp: "rp",
+  issueby: "issueBy",
+  sealno: "sealNo",
+  bookno: "sealNo",
+  status: "status",
+};
+
+const parseCsvText = (text) => {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+  const src = String(text || "").replace(/^\uFEFF/, "");
+
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (src[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += c;
+      }
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === ",") {
+      row.push(field);
+      field = "";
+    } else if (c === "\n") {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+    } else if (c !== "\r") {
+      field += c;
+    }
+  }
+  if (field !== "" || row.length) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows.filter((r) => r.some((v) => String(v).trim() !== ""));
+};
+
+// Accepts the exported "DD/MM/YYYY HH:mm:ss" format, DD/MM/YYYY on its own,
+// and ISO dates as a fallback.
+const parseCsvDate = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw || raw.toUpperCase() === "N/A") return null;
+
+  const m = raw.match(
+    /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/
   );
+  if (m) {
+    const d = new Date(
+      Number(m[3]),
+      Number(m[2]) - 1,
+      Number(m[1]),
+      Number(m[4] || 0),
+      Number(m[5] || 0),
+      Number(m[6] || 0)
+    );
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const iso = new Date(raw);
+  return isNaN(iso.getTime()) ? null : iso;
+};
+
+const findExistingGatepassNos = async (gatepassNos) => {
+  const found = new Set();
+  const col = collection(db, `artifacts/${appId}/public/data/gatepasses`);
+  for (let i = 0; i < gatepassNos.length; i += 10) {
+    const chunk = gatepassNos.slice(i, i + 10);
+    const snap = await getDocs(query(col, where("gatepassNo", "in", chunk)));
+    snap.forEach((d) => found.add(d.data().gatepassNo));
+  }
+  return found;
+};
+
+const buildGatepassesFromCsv = (rows) => {
+  const header = rows[0].map((h) =>
+    h.trim().toLowerCase().replace(/[^a-z0-9]/g, "")
+  );
+  const index = {};
+  header.forEach((h, i) => {
+    const key = CSV_COLUMN_ALIASES[h];
+    if (key && index[key] === undefined) index[key] = i;
+  });
+
+  if (index.gatepassNo === undefined || index.supplier === undefined) {
+    return {
+      error:
+        'The CSV must contain at least a "Gatepass No." and a "Supplier" column.',
+    };
+  }
+
+  const groups = new Map();
+  let ignoredRows = 0;
+
+  for (let r = 1; r < rows.length; r++) {
+    const cols = rows[r];
+    const get = (key) =>
+      index[key] === undefined ? "" : String(cols[index[key]] ?? "").trim();
+    const num = (key) => {
+      const v = parseFloat(get(key).replace(/,/g, ""));
+      return isNaN(v) ? 0 : v;
+    };
+
+    const gatepassNo = get("gatepassNo");
+    const supplier = get("supplier");
+    if (!gatepassNo || !supplier) {
+      ignoredRows++;
+      continue;
+    }
+
+    let group = groups.get(gatepassNo);
+    if (!group) {
+      const issueDate = parseCsvDate(get("date"));
+      if (!issueDate) {
+        ignoredRows++;
+        continue;
+      }
+      group = {
+        gatepassNo,
+        issueDate,
+        datePrefix:
+          String(issueDate.getFullYear()) +
+          String(issueDate.getMonth() + 1).padStart(2, "0") +
+          String(issueDate.getDate()).padStart(2, "0"),
+        driverName: get("driverName"),
+        truckNo: get("truckNo"),
+        company: get("company"),
+        zone: get("zone"),
+        issueBy: get("issueBy"),
+        sealNo: get("sealNo"),
+        status: get("status") || "Empty-Out",
+        suppliers: [],
+      };
+      groups.set(gatepassNo, group);
+    }
+
+    group.suppliers.push({
+      name: supplier,
+      company: get("company") || group.company,
+      zone: get("zone") || group.zone,
+      ptb: num("ptb"),
+      cpb: num("cpb"),
+      mov: num("mov"),
+      stp: num("stp"),
+      pl: num("pl"),
+      rp: num("rp"),
+    });
+  }
+
+  return { gatepasses: [...groups.values()], ignoredRows };
+};
+
+const handleHistoryCsvUpload = (event) => {
+  const file = event.target.files[0];
+  // Reset the input so selecting the same file again still fires "change".
+  event.target.value = "";
+  if (!file) return;
+
+  if (!loggedInUser) {
+    return showModal("Please log in before importing a CSV.", "Upload Error");
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const rows = parseCsvText(e.target.result);
+    if (rows.length <= 1) {
+      return showModal(
+        "CSV file is empty or contains only a header.",
+        "Upload Error"
+      );
+    }
+
+    const { error, gatepasses, ignoredRows } = buildGatepassesFromCsv(rows);
+    if (error) return showModal(error, "Upload Error");
+    if (!gatepasses.length) {
+      return showModal("No valid rows were found in this file.", "Upload Error");
+    }
+
+    showConfirmModal(
+      `Import ${gatepasses.length} gatepass(es) from "${file.name}"? Gatepass No. already in the system will be skipped.`,
+      async () => {
+        showProgressModal("Importing...");
+        try {
+          const existing = await findExistingGatepassNos(
+            gatepasses.map((g) => g.gatepassNo)
+          );
+          const toImport = gatepasses.filter(
+            (g) => !existing.has(g.gatepassNo)
+          );
+          const col = collection(
+            db,
+            `artifacts/${appId}/public/data/gatepasses`
+          );
+          const createdBy = auth.currentUser?.uid || "csv-import";
+
+          for (let i = 0; i < toImport.length; i += 400) {
+            const batch = writeBatch(db);
+            toImport.slice(i, i + 400).forEach((g) => {
+              batch.set(doc(col), {
+                ...g,
+                createdBy,
+                importedFromCsv: true,
+              });
+            });
+            await batch.commit();
+            updateProgress(
+              Math.min(100, ((i + 400) / toImport.length) * 100)
+            );
+          }
+
+          hideProgressModal();
+          const skipped = gatepasses.length - toImport.length;
+          showModal(
+            `Imported ${toImport.length} gatepass(es).` +
+              (skipped ? ` Skipped ${skipped} already in the system.` : "") +
+              (ignoredRows ? ` Ignored ${ignoredRows} invalid row(s).` : ""),
+            "Success",
+            true
+          );
+          if (toImport.length) fetchAndRenderHistory(true);
+        } catch (err) {
+          console.error(err);
+          hideProgressModal();
+          showModal("Import failed: " + (err?.message || "Unknown error."));
+        }
+      }
+    );
+  };
+  reader.onerror = () => showModal("Could not read the selected file.");
+  reader.readAsText(file, "utf-8");
 };
 
 const handleDeleteAllHistory = async () => {
@@ -897,15 +999,21 @@ const handleDeleteAllHistory = async () => {
       const q = await getDocs(
         collection(db, `artifacts/${appId}/public/data/gatepasses`)
       );
-      const batch = writeBatch(db);
-      q.forEach((doc) => batch.delete(doc.ref));
-      await batch.commit();
+      // A Firestore batch holds max 500 writes; delete in chunks.
+      await commitInChunks(
+        db,
+        writeBatch,
+        q.docs,
+        (batch, d) => batch.delete(d.ref),
+        (done, total) => updateProgress((done / total) * 100)
+      );
       hideProgressModal();
       showModal("Deleted all history.", "Success", true);
       fetchAndRenderHistory(true);
     } catch (e) {
+      console.error("Error deleting all history:", e);
       hideProgressModal();
-      showModal("Failed to delete.");
+      showModal("Failed to delete. Some records may already be removed — please reload.");
     }
   });
 };
@@ -1254,6 +1362,14 @@ const init = async () => {
   document
     .getElementById("export-history-csv-btn")
     .addEventListener("click", exportHistoryToCSV);
+  document
+    .getElementById("upload-history-csv-btn")
+    .addEventListener("click", () =>
+      document.getElementById("history-csv-file-input").click()
+    );
+  document
+    .getElementById("history-csv-file-input")
+    .addEventListener("change", handleHistoryCsvUpload);
   document
     .getElementById("delete-all-history-btn")
     .addEventListener("click", handleDeleteAllHistory);

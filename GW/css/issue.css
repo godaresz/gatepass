@@ -1,72 +1,61 @@
-/* =============================================================
-   SECTION 1: SCREEN STYLES (Original GW Styles)
-   ============================================================= */
-
 /* Base body style using Sarabun for Thai and Inter as a fallback */
 body {
-	font-family: "Sarabun", "Inter", sans-serif;
+  font-family: "Sarabun", "Inter", sans-serif;
 }
 
 /* Styling for scrollable tables with sticky headers */
 #supplier-table-container {
-	max-height: 75vh;
-	overflow-y: auto; /* Enable vertical scrolling */
-	position: relative;
-	border-radius: 0.5rem;
-	box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
-		0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  max-height: 75vh;
+  overflow-y: auto; /* Enable vertical scrolling */
+  position: relative;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 #supplier-table-container table {
-	width: 100%;
-	border-collapse: collapse;
+  width: 100%;
+  border-collapse: collapse;
 }
 
 #supplier-table-container thead {
-	position: sticky;
-	top: 0;
-	z-index: 10;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
-
-/* --- New Styles: Total Column (GW Specific Highlight) --- */
 
 /* 1. Body (Form): Apply Dark Gray to the INPUT element only, not the TD */
 #supplier-table-container td:last-child input {
-	background-color: #cbd5e1; /* Slate-300 (Dark Gray) */
-	font-weight: 700; /* Bold */
-	color: #1e293b; /* Slate-800 */
-	text-align: center;
+  background-color: #cbd5e1; /* Slate-300 (Dark Gray) */
+  font-weight: 700; /* Bold */
+  color: #1e293b; /* Slate-800 */
+  text-align: center;
 }
 
 /* 2. Summary Table (Web View): Apply to TD since there are no inputs */
 #summary-supplier-table-body td:last-child {
-	background-color: #cbd5e1; /* Slate-300 */
-	color: #1e293b;
-	font-weight: bold;
+  background-color: #cbd5e1; /* Slate-300 */
+  color: #1e293b;
+  font-weight: bold;
 }
 
 /* 3. Footer: Apply to last cell to highlight the column total */
 #supplier-table-footer td:last-child,
 #summary-supplier-table-footer td:last-child {
-	background-color: #cbd5e1; /* Slate-300 */
-	color: #1e293b;
-	font-weight: bold;
+  background-color: #cbd5e1; /* Slate-300 */
+  color: #1e293b;
+  font-weight: bold;
 }
 
 .logo-blend {
-	mix-blend-mode: multiply;
+  mix-blend-mode: multiply;
 }
 
 /* Ensure confirmation modals appear above other modals */
 #alert-modal,
 #confirm-modal {
-	z-index: 60;
+  z-index: 60;
 }
-
-
-/* =============================================================
-   SECTION 2: PRINT STYLES (Copied from WH1)
-   ============================================================= */
 
 @media print {
   @page {
@@ -79,7 +68,7 @@ body {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
-  
+
   /* Hide everything on the page and selectively show print container */
   body * {
     visibility: hidden;

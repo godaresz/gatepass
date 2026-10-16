@@ -16,7 +16,15 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- IMPORT จากไฟล์กลาง ---
-import { auth, db, appId } from "./firebase-config.js";
+import { auth, db, appId, siteConfig } from "./firebase-config.js";
+import {
+	QTY_FIELDS,
+	EMPTY_VEHICLE,
+	escapeHtml,
+	toLocalDateKey,
+	parseQty,
+	sumQty,
+} from "./utils.js";
 
 let masterData = [];
 let masterDataCache = {
@@ -25,6 +33,8 @@ let masterDataCache = {
 	issueBys: new Set(),
 };
 let isSaving = false;
+let masterDataPromise = null;
+const MIN_TABLE_ROWS = 30;
 
 // --- UI Helpers ---
 const showModal = (msg, title = "Error!", success = false) => {
@@ -72,7 +82,14 @@ const formatDateEN = (dateObj) => {
 };
 
 // --- Master Data ---
-const fetchMasterData = async () => {
+// Loads master data once; every caller can await the same promise, so the
+// edit screen never validates suppliers against a list that is still empty.
+const fetchMasterData = () => {
+	if (!masterDataPromise) masterDataPromise = loadMasterData();
+	return masterDataPromise;
+};
+
+const loadMasterData = async () => {
 	if (!db) return;
 	try {
 		const snap = await getDocs(
@@ -93,6 +110,10 @@ const fetchMasterData = async () => {
 		populateDatalists();
 	} catch (e) {
 		console.error(e);
+		masterDataPromise = null; // allow a retry
+		showModal(
+			"โหลด Master Data ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วรีเฟรชหน้า"
+		);
 	}
 };
 
@@ -119,10 +140,14 @@ const populateSupplierTable = (suppliers = []) => {
 	if (!tbody) return;
 	tbody.innerHTML = "";
 	const frag = document.createDocumentFragment();
-	for (let i = 0; i < 30; i++) {
+	// Never drop saved lines: show every saved supplier plus one free row.
+	const rowCount = Math.max(MIN_TABLE_ROWS, suppliers.length + 1);
+	for (let i = 0; i < rowCount; i++) {
 		const s = suppliers[i] || {};
 		const hasData = !!suppliers[i];
-		const isFirst = i === 0;
+		// Row 1, every saved row and the row right after the last saved one
+		// are open, so an edited gatepass can still get new lines.
+		const isOpen = i === 0 || hasData || i === suppliers.length;
 		const row = document.createElement("tr");
 		row.className =
 			"border-b border-gray-200 hover:bg-gray-100 last:border-b-0";
@@ -133,23 +158,23 @@ const populateSupplierTable = (suppliers = []) => {
 											i + 1
 										}.</span>
                     <div class="w-full">
-                        <input type="text" name="name" data-index="${i}" list="supplier-name-list" autocomplete="off" class="uppercase-input w-full p-1 border border-gray-300 rounded-md" value="${
+                        <input type="text" name="name" data-index="${i}" list="supplier-name-list" autocomplete="off" class="uppercase-input w-full p-1 border border-gray-300 rounded-md" value="${escapeHtml(
 			s.name || ""
-		}" ${!isFirst && !hasData ? "disabled" : ""}>
+		)}" ${isOpen ? "" : "disabled"}>
                         <p id="error-supplier-${i}-name" class="text-red-500 text-xs mt-1"></p>
                     </div>
                 </div>
             </td>`;
 
 		// Generate Input Fields
-		["ptb", "cpb", "mov", "stp", "pl", "rp"].forEach((f) => {
-			const isRP = s.name === "รถเปล่า";
+		QTY_FIELDS.forEach((f) => {
+			const isRP = s.name === EMPTY_VEHICLE;
 			const val = s[f] !== undefined ? s[f] : "";
 			const dis = !hasData || isRP;
 			html += `<td class="py-3 px-4 text-left">
                 <input type="number" name="${f}" data-index="${i}" autocomplete="off" class="w-full p-1 border border-gray-300 rounded-md ${
 				dis ? "bg-gray-100" : ""
-			}" value="${val}" min="0" ${dis ? "disabled" : ""}>
+			}" value="${escapeHtml(val)}" min="0" step="1" ${dis ? "disabled" : ""}>
             </td>`;
 		});
 
@@ -172,9 +197,8 @@ const updateTotalsDisplay = () => {
 		let rowSum = 0;
 
 		// Calculate individual field totals and row sum
-		["ptb", "cpb", "mov", "stp", "pl", "rp"].forEach((f) => {
-			const val =
-				parseFloat(row.querySelector(`input[name="${f}"]`).value) || 0;
+		QTY_FIELDS.forEach((f) => {
+			const val = parseQty(row.querySelector(`input[name="${f}"]`).value) || 0;
 			if (val > 0) {
 				totals[f] += val;
 				rowSum += val;
@@ -205,7 +229,10 @@ const updateTotalsDisplay = () => {
 	if (totalRowSumEl) totalRowSumEl.textContent = totals.grand;
 };
 
-const handleCompanyChange = () => {
+// `revalidate` re-checks every supplier row. It runs on "change" (field
+// left / value picked), not on every keystroke: re-checking while the user is
+// still typing the company name would clear the quantities of every row.
+const handleCompanyChange = (revalidate = true) => {
 	const compEl = document.getElementById("company");
 	const zoneEl = document.getElementById("zone");
 	const dl = document.getElementById("supplier-name-list");
@@ -220,8 +247,8 @@ const handleCompanyChange = () => {
 		const valid = new Set();
 		masterData.forEach((d) => {
 			if (
-				d.company?.toUpperCase() === comp &&
-				d.zone2?.toUpperCase() === zone &&
+				d.company?.trim().toUpperCase() === comp &&
+				d.zone2?.trim().toUpperCase() === zone &&
 				d.supplier
 			) {
 				valid.add(d.supplier);
@@ -229,7 +256,7 @@ const handleCompanyChange = () => {
 		});
 		const frag = document.createDocumentFragment();
 		const rp = document.createElement("option");
-		rp.value = "รถเปล่า";
+		rp.value = EMPTY_VEHICLE;
 		frag.appendChild(rp);
 		[...valid].sort().forEach((v) => {
 			const o = document.createElement("option");
@@ -239,10 +266,21 @@ const handleCompanyChange = () => {
 		dl.appendChild(frag);
 	}
 
+	if (!revalidate) return;
 	document
 		.querySelectorAll('#supplier-table-body input[name="name"]')
-		.forEach((inp) => validateRow(inp));
+		.forEach((inp) => {
+			if (inp.value.trim()) validateRow(inp);
+		});
 };
+
+const isValidSupplier = (comp, zone, name) =>
+	masterData.some(
+		(d) =>
+			d.company?.trim().toUpperCase() === comp &&
+			d.zone2?.trim().toUpperCase() === zone &&
+			d.supplier?.trim().toUpperCase() === name.toUpperCase()
+	);
 
 const validateRow = (input) => {
 	const name = input.value.trim();
@@ -264,7 +302,7 @@ const validateRow = (input) => {
 		});
 		return;
 	}
-	if (name.toUpperCase() === "รถเปล่า") {
+	if (name === EMPTY_VEHICLE) {
 		qInputs.forEach((i) => {
 			i.disabled = true;
 			i.classList.remove("bg-gray-100");
@@ -280,12 +318,7 @@ const validateRow = (input) => {
 		input.classList.add("border-red-500");
 		return;
 	}
-	const match = masterData.some(
-		(d) =>
-			d.company?.toUpperCase() === comp &&
-			d.zone2?.toUpperCase() === zone &&
-			d.supplier?.toUpperCase() === name.toUpperCase()
-	);
+	const match = isValidSupplier(comp, zone, name);
 	if (match) {
 		qInputs.forEach((i) => {
 			i.disabled = false;
@@ -323,6 +356,15 @@ const loadGatepassForEditing = async (docId) => {
 		}
 
 		const data = snapshot.data();
+		if (data.status === "Empty-IN") {
+			// Gatepass IN records have their own form.
+			sessionStorage.setItem("editGatepassInId", docId);
+			window.location.href = "gatepass-in.html";
+			return;
+		}
+		// Supplier validation below needs the master list; without it every
+		// row would be flagged invalid and its quantities cleared.
+		await fetchMasterData();
 
 		document.getElementById("docId").value = docId;
 		document.getElementById("driverName").value = data.driverName || "";
@@ -332,7 +374,7 @@ const loadGatepassForEditing = async (docId) => {
 		document.getElementById("zone").value = data.zone || "";
 		document.getElementById("issueBy").value = data.issueBy || "";
 
-		populateSupplierTable(data.suppliers);
+		populateSupplierTable(data.suppliers || []);
 		handleCompanyChange();
 
 		document.getElementById("save-btn").textContent = "Update Gatepass";
@@ -353,8 +395,9 @@ const handleSubmit = async (e) => {
 	btn.textContent = "Saving...";
 
 	let valid = true;
-	document
-		.querySelectorAll(".text-red-500")
+	const formEl = document.getElementById("gatepass-form");
+	formEl
+		.querySelectorAll('p.text-red-500[id^="error-"]')
 		.forEach((e) => (e.textContent = ""));
 	["driverName", "truckNo", "sealNo", "company", "zone", "issueBy"].forEach(
 		(id) => {
@@ -373,23 +416,44 @@ const handleSubmit = async (e) => {
 	const suppliers = [];
 	const comp = document.getElementById("company").value.trim();
 	const zone = document.getElementById("zone").value.trim();
+	let firstErrRow = null;
 
 	for (const r of rows) {
 		const n = r.querySelector('input[name="name"]').value.trim();
 		if (n) {
-			const isRP = n.toUpperCase() === "รถเปล่า";
+			const isRP = n === EMPTY_VEHICLE;
+			const errP = r.querySelector('p[id^="error-supplier"]');
+			const setRowError = (msg) => {
+				if (errP) errP.textContent = msg;
+				rowErr = true;
+				if (!firstErrRow) firstErrRow = r;
+			};
 			let rowHasQ = false;
+			let badQty = false;
 			const sData = { name: n, company: comp, zone: zone };
-			["ptb", "cpb", "mov", "stp", "pl", "rp"].forEach((f) => {
-				const v = parseFloat(r.querySelector(`input[name="${f}"]`).value) || 0;
-				sData[f] = v;
+			QTY_FIELDS.forEach((f) => {
+				const v = isRP
+					? 0
+					: parseQty(r.querySelector(`input[name="${f}"]`).value);
+				if (Number.isNaN(v)) badQty = true;
+				sData[f] = Number.isNaN(v) ? 0 : v;
 				if (v > 0) rowHasQ = true;
 			});
 
+			if (
+				!isRP &&
+				masterData.length > 0 &&
+				!isValidSupplier(comp.toUpperCase(), zone.toUpperCase(), n)
+			) {
+				setRowError("Supplier ไม่ถูกต้องสำหรับ Company/Zone นี้");
+				continue;
+			}
+			if (badQty) {
+				setRowError("จำนวนต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป");
+				continue;
+			}
 			if (!isRP && !rowHasQ) {
-				const errP = r.querySelector('p[id^="error-supplier"]');
-				if (errP) errP.textContent = "ระบุจำนวนหรือลบแถว";
-				rowErr = true;
+				setRowError("ระบุจำนวนหรือลบแถว");
 			}
 			if (isRP || rowHasQ) {
 				suppliers.push(sData);
@@ -399,7 +463,11 @@ const handleSubmit = async (e) => {
 	}
 
 	if (!valid || rowErr || !hasItem) {
-		if (!hasItem && !rowErr) showModal("ใส่ Supplier อย่างน้อย 1 รายการ");
+		if (!valid) showModal("กรุณากรอกข้อมูลส่วนหัวให้ครบ (ช่องที่มีข้อความ Required)");
+		else if (rowErr) {
+			showModal("กรุณาแก้ไขข้อผิดพลาดในตาราง Supplier ก่อนบันทึก");
+			firstErrRow?.scrollIntoView({ behavior: "smooth", block: "center" });
+		} else showModal("ใส่ Supplier อย่างน้อย 1 รายการ");
 		isSaving = false;
 		btn.disabled = false;
 		btn.textContent = orgTxt;
@@ -433,7 +501,10 @@ const handleSubmit = async (e) => {
 			const snap = await getDoc(docRef);
 			populateSummary(snap.data());
 		} else {
-			const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+			// Local date (Thailand), not UTC — otherwise gatepasses issued
+			// between 00:00 and 07:00 get yesterday's number sequence.
+			const todayStr = toLocalDateKey(new Date());
+			const prefix = siteConfig?.gatepassPrefix || "LDC";
 			const counterRef = doc(
 				db,
 				`artifacts/${appId}/public/data/counters`,
@@ -443,7 +514,7 @@ const handleSubmit = async (e) => {
 			const result = await runTransaction(db, async (txn) => {
 				const cDoc = await txn.get(counterRef);
 				const count = (cDoc.data()?.count || 0) + 1;
-				const gpNo = `${todayStr}-LDC-GW-${String(count).padStart(3, "0")}`;
+				const gpNo = `${todayStr}-${prefix}-${String(count).padStart(3, "0")}`;
 				const newRef = doc(
 					collection(db, `artifacts/${appId}/public/data/gatepasses`)
 				);
@@ -511,28 +582,24 @@ const populateSummary = (data) => {
 		if (!tb) return;
 		tb.innerHTML = "";
 		let gTot = { ptb: 0, cpb: 0, mov: 0, stp: 0, pl: 0, rp: 0, grand: 0 };
-		const rows = isPrint ? 30 : data.suppliers.length;
+		const suppliers = data.suppliers || [];
+		const rows = isPrint
+			? Math.max(MIN_TABLE_ROWS, suppliers.length)
+			: suppliers.length;
 
 		for (let i = 0; i < rows; i++) {
-			const s = data.suppliers[i];
+			const s = suppliers[i];
 			const r = document.createElement("tr");
 			if (s) {
-				const tot =
-					(s.ptb || 0) +
-					(s.cpb || 0) +
-					(s.mov || 0) +
-					(s.stp || 0) +
-					(s.pl || 0) +
-					(s.rp || 0);
-				["ptb", "cpb", "mov", "stp", "pl", "rp"].forEach(
-					(k) => (gTot[k] += s[k] || 0)
-				);
+				const tot = sumQty(s);
+				QTY_FIELDS.forEach((k) => (gTot[k] += Number(s[k]) || 0));
 				gTot.grand += tot;
-				const isRP = s.name === "รถเปล่า";
+				const isRP = s.name === EMPTY_VEHICLE;
+				const name = escapeHtml(s.name);
 
 				if (isPrint) {
 					// Print Version (Existing structure)
-					r.innerHTML = `<td class="supplier-name">${s.name}</td>
+					r.innerHTML = `<td class="supplier-name">${name}</td>
                        <td>${s.ptb > 0 || isRP ? s.ptb || 0 : ""}</td><td>${
 						s.cpb > 0 || isRP ? s.cpb || 0 : ""
 					}</td><td>${s.mov > 0 || isRP ? s.mov || 0 : ""}</td>
@@ -542,7 +609,7 @@ const populateSummary = (data) => {
                        <td>${tot > 0 || isRP ? tot : ""}</td>`;
 				} else {
 					// Web View (Add Total Column)
-					r.innerHTML = `<td class="py-3 px-4">${s.name}</td>
+					r.innerHTML = `<td class="py-3 px-4">${name}</td>
                        <td class="py-3 px-4">${
 													s.ptb || 0
 												}</td><td class="py-3 px-4">${
@@ -651,11 +718,12 @@ document.addEventListener("DOMContentLoaded", () => {
 	const formEl = document.getElementById("gatepass-form");
 	if (formEl) formEl.addEventListener("submit", handleSubmit);
 
-	const compEl = document.getElementById("company");
-	if (compEl) compEl.addEventListener("input", handleCompanyChange);
-
-	const zoneEl = document.getElementById("zone");
-	if (zoneEl) zoneEl.addEventListener("input", handleCompanyChange);
+	["company", "zone"].forEach((id) => {
+		const el = document.getElementById(id);
+		if (!el) return;
+		el.addEventListener("input", () => handleCompanyChange(false));
+		el.addEventListener("change", () => handleCompanyChange(true));
+	});
 
 	const closeBtn = document.getElementById("modal-close-btn");
 	if (closeBtn) closeBtn.addEventListener("click", hideModal);
@@ -722,14 +790,13 @@ document.addEventListener("DOMContentLoaded", () => {
 		return;
 	}
 
-	fetchMasterData();
-
 	onAuthStateChanged(auth, async (u) => {
 		if (!u) {
 			if (typeof __initial_auth_token !== "undefined")
 				await signInWithCustomToken(auth, __initial_auth_token);
 			else await signInAnonymously(auth);
 		} else {
+			fetchMasterData();
 			const editId = sessionStorage.getItem("editGatepassId");
 			if (editId) {
 				sessionStorage.removeItem("editGatepassId");
