@@ -81,7 +81,19 @@ const load = async (force) => {
 		}
 	}
 
-	const snap = await getDocs(collection(db, masterPath()));
+	let snap;
+	try {
+		snap = await getDocs(collection(db, masterPath()));
+	} catch (e) {
+		// Over quota / offline: an old copy is much better than nothing.
+		const stale = memory || readCache();
+		if (stale && !force) {
+			console.warn("Using cached master data (server not reachable):", e);
+			memory = stale;
+			return stale.rows;
+		}
+		throw e;
+	}
 	const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 	rows.sort((a, b) => (a.order || 0) - (b.order || 0));
 	writeCache({ version: version ?? -1, savedAt: Date.now(), rows });

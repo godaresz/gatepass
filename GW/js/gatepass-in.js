@@ -21,6 +21,15 @@ import {
 import { auth, db, appId } from "./firebase-config.js";
 import { getMasterData } from "./master-cache.js";
 import {
+	addPending,
+	isRetryableError,
+	nextQuotaReset,
+	formatTime,
+} from "./pending-queue.js";
+
+// Master data could not be loaded (quota / offline): do not block entry.
+const masterUnavailable = () => gatepassIN_masterData.length === 0;
+import {
 	EMPTY_VEHICLE,
 	escapeHtml,
 	parseQty,
@@ -148,7 +157,8 @@ const fetchMasterDataForGatepassIN = async () => {
 	} catch (error) {
 		console.error("Error fetching master data:", error);
 		showGatepassINModal(
-			"Failed to load master data. Please check your connection and refresh."
+			"โหลด Master Data ไม่สำเร็จ (โควต้า Firebase หมด หรือไม่มีอินเทอร์เน็ต) " +
+				"ยังกรอกและพิมพ์ใบได้ ระบบจะเก็บเป็น Pending แล้วบันทึกให้อัตโนมัติ"
 		);
 	}
 };
@@ -413,7 +423,7 @@ const handleRowInputForGatepassIN = (e) => {
 			if (supplierDatalist)
 				fillSupplierDatalistForGatepassIN(index, validSuppliers);
 
-			if (validSuppliers.size > 0) {
+			if (validSuppliers.size > 0 || masterUnavailable()) {
 				supplierInput.disabled = false;
 			}
 		}
@@ -769,7 +779,7 @@ const handleFormSubmitForGatepassIN = async (e) => {
 			if (company && name) {
 				const isRottPlao = name === EMPTY_VEHICLE;
 
-				if (!isRottPlao) {
+				if (!isRottPlao && !masterUnavailable()) {
 					const isValidSupplier = gatepassIN_masterData.some(
 						(d) =>
 							d.company?.trim().toUpperCase() === companyUpper &&
@@ -865,6 +875,47 @@ const handleFormSubmitForGatepassIN = async (e) => {
 		console.warn("Duplicate Gatepass No. check failed:", error);
 	}
 
+	const savedSuppliers = suppliersToSave.map((s) => ({
+		company: s.company,
+		zone: s.zone2,
+		name: s.name,
+		ptb: s.ptb || 0,
+		cpb: s.cpb || 0,
+		mov: s.mov || 0,
+		stp: s.stp || 0,
+		pl: s.pl || 0,
+		rp: s.rp || 0,
+	}));
+	const summaryData = {
+		...formData,
+		issueDate: new Date(formData.issueDateTime),
+		suppliers: suppliersToSave,
+	};
+
+	// Firebase over quota / offline: keep as Pending, show the printable
+	// summary now; pending-sync.js saves it later with the same number.
+	const saveAsPending = (kind) => {
+		const data = {
+			driverName: formData.driverName,
+			truckNo: formData.truckNo,
+			issueBy: formData.issueBy,
+			issueDate: new Date(formData.issueDateTime),
+			sealNo: formData.bookNo,
+			gatepassNo: formData.gatepassNo,
+			suppliers: savedSuppliers,
+		};
+		if (kind === "create") {
+			data.createdBy = gatepassIN_auth.currentUser?.uid || "anon";
+			data.status = "Empty-IN";
+		}
+		addPending({ kind, docId, data });
+		sessionStorage.removeItem("editGatepassInId");
+		populateGatepassINSummary(summaryData);
+		showGatepassINPendingNotice(true);
+		DOMElements.formPage.classList.add("hidden");
+		DOMElements.summaryPage.classList.remove("hidden");
+	};
+
 	if (docId) {
 		// UPDATE
 		try {
@@ -902,8 +953,12 @@ const handleFormSubmitForGatepassIN = async (e) => {
 			}, 1500);
 		} catch (error) {
 			console.error("Error updating document: ", error);
-			showGatepassINModal("An error occurred while updating.");
-			if (submitBtn) submitBtn.disabled = false;
+			if (isRetryableError(error)) {
+				saveAsPending("update");
+			} else {
+				showGatepassINModal("An error occurred while updating.");
+				if (submitBtn) submitBtn.disabled = false;
+			}
 			gatepassIN_isSaving = false;
 		} finally {
 			gatepassIN_isSaving = false;
@@ -939,23 +994,42 @@ const handleFormSubmitForGatepassIN = async (e) => {
 
 			await addDoc(gatepassesCollectionRef, docToSave);
 
-			const summaryData = {
-				...formData,
-				issueDate: new Date(formData.issueDateTime),
-				suppliers: suppliersToSave,
-			};
-
+			showGatepassINPendingNotice(false);
 			populateGatepassINSummary(summaryData);
 			DOMElements.formPage.classList.add("hidden");
 			DOMElements.summaryPage.classList.remove("hidden");
 		} catch (error) {
 			console.error("Error saving document: ", error);
-			showGatepassINModal("An error occurred while saving. Please try again.");
-			if (submitBtn) submitBtn.disabled = false;
+			if (isRetryableError(error)) {
+				saveAsPending("create");
+			} else {
+				showGatepassINModal("An error occurred while saving. Please try again.");
+				if (submitBtn) submitBtn.disabled = false;
+			}
 			gatepassIN_isSaving = false;
 		} finally {
 			gatepassIN_isSaving = false;
 		}
+	}
+};
+
+const showGatepassINPendingNotice = (show) => {
+	let el = document.getElementById("gatepassIN_pendingNotice");
+	if (!el) {
+		el = document.createElement("div");
+		el.id = "gatepassIN_pendingNotice";
+		el.className =
+			"no-print hidden mx-4 my-4 p-4 rounded-lg border border-amber-400 bg-amber-50 text-amber-900 text-sm";
+		DOMElements.summaryPage.prepend(el);
+	}
+	el.classList.toggle("hidden", !show);
+	if (show) {
+		el.innerHTML =
+			"<strong>⏳ PENDING — ยังไม่ได้บันทึกลงระบบ</strong><br>" +
+			"Firebase ใช้โควต้าฟรีวันนี้หมด/ไม่มีอินเทอร์เน็ต พิมพ์ใบนี้ได้เลย " +
+			`ระบบจะบันทึกให้อัตโนมัติ (ประมาณ ${formatTime(
+				nextQuotaReset()
+			)} น.) อย่าล้างข้อมูลเบราว์เซอร์ของเครื่องนี้`;
 	}
 };
 
@@ -975,7 +1049,12 @@ const handleSupplierBlurForGatepassIN = (e) => {
 		);
 		const rowTotalInput = currentRow.querySelector(".gatepassIN_rowTotalInput");
 
-		if (!companyValue || !supplierValue || supplierValue === EMPTY_VEHICLE) {
+		if (
+			!companyValue ||
+			!supplierValue ||
+			supplierValue === EMPTY_VEHICLE ||
+			masterUnavailable()
+		) {
 			hideGatepassINInlineError(currentRow);
 			return;
 		}

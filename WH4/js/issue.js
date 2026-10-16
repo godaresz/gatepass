@@ -19,6 +19,12 @@ import {
 import { auth, db, appId, siteConfig } from "./firebase-config.js";
 import { getMasterData } from "./master-cache.js";
 import {
+	addPending,
+	isRetryableError,
+	nextQuotaReset,
+	formatTime,
+} from "./pending-queue.js";
+import {
 	QTY_FIELDS,
 	EMPTY_VEHICLE,
 	escapeHtml,
@@ -112,7 +118,8 @@ const loadMasterData = async () => {
 		console.error(e);
 		masterDataPromise = null; // allow a retry
 		showModal(
-			"โหลด Master Data ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วรีเฟรชหน้า"
+			"โหลด Master Data ไม่สำเร็จ (โควต้า Firebase หมด หรือไม่มีอินเทอร์เน็ต) " +
+				"ยังกรอกและพิมพ์ใบได้ ระบบจะเก็บเป็น Pending แล้วบันทึกให้อัตโนมัติ"
 		);
 	}
 };
@@ -310,6 +317,16 @@ const validateRow = (input) => {
 		});
 		input.classList.add("border-green-500");
 		enableNextRow(idx);
+		updateTotalsDisplay();
+		return;
+	}
+	if (masterData.length === 0) {
+		// Master data could not be loaded (quota / offline): allow the entry
+		// rather than blocking the gatepass; it is checked again when online.
+		qInputs.forEach((i) => {
+			i.disabled = false;
+			i.classList.remove("bg-gray-100");
+		});
 		updateTotalsDisplay();
 		return;
 	}
@@ -536,16 +553,74 @@ const handleSubmit = async (e) => {
 			populateSummary(result);
 		}
 
+		showPendingNotice(false);
 		document.getElementById("form-page").classList.add("hidden");
 		document.getElementById("summary-page").classList.remove("hidden");
 	} catch (e) {
 		console.error(e);
-		showModal("Error saving: " + e.message);
-		btn.disabled = false;
-		btn.textContent = orgTxt;
+		if (isRetryableError(e)) {
+			// Firebase over quota / offline: keep it as Pending so it can be
+			// printed now; pending-sync.js saves it automatically later.
+			savePending(docId, formData);
+		} else {
+			showModal("Error saving: " + e.message);
+			btn.disabled = false;
+			btn.textContent = orgTxt;
+		}
 	} finally {
 		isSaving = false;
 	}
+};
+
+const showPendingNotice = (show) => {
+	let el = document.getElementById("pending-notice");
+	if (!el) {
+		const summary = document.getElementById("summary-page");
+		if (!summary) return;
+		el = document.createElement("div");
+		el.id = "pending-notice";
+		el.className =
+			"no-print hidden mx-4 my-4 p-4 rounded-lg border border-amber-400 bg-amber-50 text-amber-900 text-sm";
+		summary.prepend(el);
+	}
+	el.classList.toggle("hidden", !show);
+	if (show) {
+		el.innerHTML =
+			"<strong>⏳ PENDING — ยังไม่ได้บันทึกลงระบบ</strong><br>" +
+			"Firebase ใช้โควต้าฟรีวันนี้หมด/ไม่มีอินเทอร์เน็ต พิมพ์ใบนี้ได้เลย " +
+			`ระบบจะบันทึกให้อัตโนมัติด้วยเลขที่เดิม (ประมาณ ${formatTime(
+				nextQuotaReset()
+			)} น.) อย่าล้างข้อมูลเบราว์เซอร์ของเครื่องนี้`;
+	}
+};
+
+const savePending = (docId, formData) => {
+	const now = new Date();
+	if (docId) {
+		addPending({ kind: "update", docId, data: formData });
+		populateSummary({ ...(editingGatepass || {}), ...formData });
+	} else {
+		// Own number series ("P" + time) so it can never clash with the
+		// normal counter numbers, and the printed number is the saved one.
+		const todayStr = toLocalDateKey(now);
+		const prefix = siteConfig?.gatepassPrefix || "LDC";
+		const hms = [now.getHours(), now.getMinutes(), now.getSeconds()]
+			.map((n) => String(n).padStart(2, "0"))
+			.join("");
+		const data = {
+			...formData,
+			gatepassNo: `${todayStr}-${prefix}-P${hms}`,
+			datePrefix: todayStr,
+			issueDate: now,
+			createdBy: auth.currentUser?.uid || "anon",
+			status: "Empty-Out",
+		};
+		addPending({ kind: "create", data });
+		populateSummary(data);
+	}
+	showPendingNotice(true);
+	document.getElementById("form-page").classList.add("hidden");
+	document.getElementById("summary-page").classList.remove("hidden");
 };
 
 const populateSummary = (data) => {
