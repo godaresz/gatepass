@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Issue Gatepass - LDC-GW</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Sarabun:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../css/issue.css" />
+  </head>
+  <body class="bg-gray-100 min-h-screen antialiased text-gray-800">
+    <div
+      class="no-print fixed top-0 left-0 p-1 text-xs bg-white/50 text-gray-600 z-50 rounded-br-lg font-bold"
+    >
+      Made By Suwarot Thanabat L150081
+    </div>
+
+    <div class="p-4 md:p-8">
+      <!-- FORM PAGE -->
+      <div
+        id="form-page"
+        class="bg-white p-6 md:p-8 rounded-xl shadow-lg my-8 transition-opacity duration-300"
+      >
+        <div class="flex justify-between items-center mb-6 border-b pb-4">
+          <h2 class="text-3xl font-bold text-indigo-600">
+            Gatepass Issue Form
+          </h2>
+          <img
+            src="../picture/logo.png"
+            alt="Logo"
+            class="w-32 logo-blend"
+            onerror="this.onerror=null;this.src='https://placehold.co/128x51/ffffff/334155?text=Logo';"
+          />
+        </div>
+        <form id="gatepass-form" class="space-y-6">
+          <!-- Hidden ID for Edit Mode -->
+          <input type="hidden" id="docId" name="docId" />
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="relative">
+              <label
+                for="driverName"
+                class="text-sm font-medium text-gray-700 block mb-1"
+                >Driver Name</label
+              >
+              <input
+                type="text"
+                id="driverName"
+                name="driverName"
+                autocomplete="off"
+                class="uppercase-input w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="ระบุชื่อคนขับ"
+              />
+              <p id="error-driverName" class="text-red-500 text-xs mt-1"></p>
+            </div>
+            <div class="relative">
+              <label
+                for="truckNo"
+                class="text-sm font-medium text-gray-700 block mb-1"
+                >Truck No.</label
+              >
+              <input
+                type="text"
+                id="truckNo"
+                name="truckNo"
+                autocomplete="off"
+                class="uppercase-input w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="ระบุเลขทะเบียนรถ"
+              />
+              <p id="error-truckNo" class="text-red-500 text-xs mt-1"></p>
+            </div>
+            <div class="relative">
+              <label
+                for="sealNo"
+                class="text-sm font-medium text-gray-700 block mb-1"
+                >Seal No.</label
+              >
+              <input
+                type="text"
+                id="sealNo"
+                name="sealNo"
+                autocomplete="off"
+                class="uppercase-input w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="ระบุเลข Seal"
+              />
+              <p id="error-sealNo" class="text-red-500 text-xs mt-1"></p>
+            </div>
+            <div class="relative">
+              <label
+                for="company"
+                class="text-sm font-medium text-gray-700 block mb-1"
+                >Company</label
+              >
+              <input
+                type="text"
+                id="company"
+                name="company"
+                list="company-list"
+                autocomplete="off"
+                class="uppercase-input w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="เลือกบริษัท"
+              />
+              <datalist id="company-list"></datalist>
+              <p id="error-company" class="text-red-500 text-xs mt-1"></p>
+            </div>
+            <div class="relative">
+              <label
+                for="zone"
+                class="text-sm font-medium text-gray-700 block mb-1"
+                >Zone</label
+              >
+              <input
+                type="text"
+                id="zone"
+                name="zone"
+                list="zone-list"
+                autocomplete="off"
+                class="uppercase-input w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="เลือกโซน"
+              />
+              <datalist id="zone-list"></datalist>
+              <p id="error-zone" class="text-red-500 text-xs mt-1"></p>
+            </div>
+            <div class="relative">
+              <label
+                for="issueBy"
+                class="text-sm font-medium text-gray-700 block mb-1"
+                >Issued By</label
+              >
+              <input
+                type="text"
+                id="issueBy"
+                name="issueBy"
+                list="issueBy-list"
+                autocomplete="off"
+                class="uppercase-input w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="ระบุผู้ออกบัตร"
+              />
+              <datalist id="issueBy-list"></datalist>
+              <p id="error-issueBy" class="text-red-500 text-xs mt-1"></p>
+            </div>
+          </div>
+
+          <div id="supplier-details-container" class="relative mt-8">
+            <h3 class="text-xl font-bold mb-4 text-indigo-600">
+              Supplier & Item Details
+            </h3>
+            <div id="supplier-table-container">
+              <table class="min-w-full bg-white">
+                <thead>
+                  <tr
+                    class="bg-indigo-500 text-white uppercase text-sm leading-normal"
+                  >
+                    <th class="py-3 px-4 text-left w-1/4">
+                      No. / Supplier Name
+                    </th>
+                    <th class="py-2 px-2 text-center">
+                      PTB<br /><span class="font-normal">กล่องพลาสติก</span>
+                    </th>
+                    <th class="py-2 px-2 text-center">
+                      CPB<br /><span class="font-normal">กล่องลูกฟูก</span>
+                    </th>
+                    <th class="py-2 px-2 text-center">
+                      MOV<br /><span class="font-normal">แร็คมีล้อ</span>
+                    </th>
+                    <th class="py-2 px-2 text-center">
+                      STP<br /><span class="font-normal">แร็คไม่มีล้อ</span>
+                    </th>
+                    <th class="py-2 px-2 text-center">
+                      PL<br /><span class="font-normal">พาเลท</span>
+                    </th>
+                    <th class="py-2 px-2 text-center">
+                      RP<br /><span class="font-normal">เชือก</span>
+                    </th>
+                    <th class="py-2 px-2 text-center">
+                      Total<br /><span class="font-normal">รวม</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody
+                  class="text-gray-600 text-sm font-light"
+                  id="supplier-table-body"
+                ></tbody>
+                <tfoot
+                  id="supplier-table-footer"
+                  class="text-gray-800 text-sm font-bold bg-indigo-100"
+                >
+                  <tr>
+                    <td class="py-3 px-4 text-right">Total:</td>
+                    <td id="total-ptb" class="py-3 px-4 text-left">0</td>
+                    <td id="total-cpb" class="py-3 px-4 text-left">0</td>
+                    <td id="total-mov" class="py-3 px-4 text-left">0</td>
+                    <td id="total-stp" class="py-3 px-4 text-left">0</td>
+                    <td id="total-pl" class="py-3 px-4 text-left">0</td>
+                    <td id="total-rp" class="py-3 px-4 text-left">0</td>
+                    <!-- Removed Tailwind classes to let CSS handle it -->
+                    <td id="total-row-sum" class="py-3 px-4 text-left">0</td>
+                  </tr>
+                  <tr class="bg-indigo-200">
+                    <td class="py-3 px-4 text-right font-bold text-lg">
+                      Grand Total:
+                    </td>
+                    <td
+                      id="grand-total"
+                      colspan="7"
+                      class="py-3 px-4 text-left font-bold text-lg"
+                    >
+                      0
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          <div class="flex justify-end space-x-4 mt-8">
+            <a
+              id="back-to-menu-form"
+              href="../index.html"
+              class="flex items-center justify-center px-6 py-3 bg-gray-400 text-white rounded-lg shadow-md hover:bg-gray-500 transition-colors duration-200 no-underline"
+              >Back to Menu</a
+            >
+
+            <button
+              type="submit"
+              id="save-btn"
+              class="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-200"
+            >
+              Save & View Summary
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- SUMMARY PAGE -->
+      <div id="summary-page" class="hidden bg-white my-8">
+        <div class="print-container p-8 rounded-xl shadow-lg">
+          <!-- Print Layout -->
+          <div id="print-version" class="hidden">
+            <div id="print-header">
+              <img
+                id="print-header-logo"
+                src="../picture/logo.png"
+                alt="Logo"
+                onerror="this.onerror=null;this.src='https://placehold.co/200x80/ffffff/334155?text=Logo';"
+              />
+              <div id="print-header-text">
+                <h1>บริษัท ไลเน็กซ์ อินเตอร์เนชั่นแนล (ประเทศไทย) จำกัด</h1>
+                <p>LINEX INTERNATIONAL (THAILAND) Co.,Ltd.</p>
+              </div>
+            </div>
+            <div id="print-title">
+              <h2 class="font-bold mt-2">GATE PASS: EMPTY PACKAGE LDC-GW</h2>
+              <p>เอกสารใบผ่านยาม (บรรจุภัณฑ์เปล่า)</p>
+            </div>
+            <div id="print-details">
+              <div><strong>Date:</strong> <span id="print-date"></span></div>
+              <div>
+                <strong>Gate Pass No.:</strong>
+                <span id="print-gatepassId"></span>
+              </div>
+              <div>
+                <strong>Driver Name:</strong>
+                <span id="print-driverName"></span>
+              </div>
+              <div>
+                <strong>Truck No.:</strong> <span id="print-truckNo"></span>
+              </div>
+              <div>
+                <strong>Company:</strong> <span id="print-company"></span>
+              </div>
+              <div><strong>Zone:</strong> <span id="print-zone"></span></div>
+              <div>
+                <strong>Seal No.:</strong> <span id="print-sealNo"></span>
+              </div>
+              <div>
+                <strong>Issue Date :</strong>
+                <span id="print-issue-datetime"></span>
+              </div>
+            </div>
+            <div id="print-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>SUPPLIER</th>
+                    <th>PTB<br />กล่องพลาสติก</th>
+                    <th>CPB<br />กล่องลูกฟูก</th>
+                    <th>MOV<br />แร็คมีล้อ</th>
+                    <th>STP<br />แร็คไม่มีล้อ</th>
+                    <th>PALLET<br />พาเลท</th>
+                    <th>Rope<br />เชือก</th>
+                    <th>TOTAL<br />รวม</th>
+                  </tr>
+                </thead>
+                <tbody id="print-supplier-table-body"></tbody>
+                <tfoot id="print-supplier-table-footer"></tfoot>
+              </table>
+            </div>
+            <div id="print-footer">
+              <div>
+                <div class="signature-box">
+                  <span id="print-worker-name"></span>
+                </div>
+                <p>Worker (พนักงาน)<br />LINEX</p>
+              </div>
+              <div>
+                <div class="signature-box"></div>
+                <p>Foreman (หัวหน้างาน)<br />LINEX</p>
+              </div>
+              <div>
+                <div class="signature-box">
+                  <span id="print-driver-signature"></span>
+                </div>
+                <p>
+                  Driver (พนักงานขับรถ)<br /><span
+                    id="print-driver-company"
+                  ></span>
+                </p>
+              </div>
+              <div>
+                <div class="signature-box"></div>
+                <p>Security guard (รปภ.)<br />ISUZU MOTORS (THAILAND)</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Web View Summary -->
+          <div class="no-print">
+            <div class="flex justify-between items-center mb-6">
+              <h2 class="text-3xl font-bold text-indigo-600">
+                Gatepass Summary
+              </h2>
+              <img
+                src="../picture/logo.png"
+                alt="Logo"
+                class="w-32 logo-blend"
+                onerror="this.onerror=null;this.src='https://placehold.co/128x51/ffffff/334155?text=Logo';"
+              />
+            </div>
+            <div
+              id="print-message"
+              class="hidden bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded-lg shadow-sm"
+              role="alert"
+            >
+              <p class="font-bold">Print Initiated!</p>
+              <p>
+                Please check your print dialog to save or print the document.
+              </p>
+            </div>
+            <div class="space-y-4 mb-8">
+              <h3 class="text-xl font-semibold text-gray-700">
+                General Information
+              </h3>
+              <ul
+                class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600"
+              >
+                <li>
+                  <strong>Gatepass No.:</strong>
+                  <span id="summary-gatepassId"></span>
+                </li>
+                <li>
+                  <strong>Issue Date:</strong>
+                  <span id="summary-issueDate"></span>
+                </li>
+                <li>
+                  <strong>Driver Name:</strong>
+                  <span id="summary-driverName"></span>
+                </li>
+                <li>
+                  <strong>Truck No.:</strong> <span id="summary-truckNo"></span>
+                </li>
+                <li>
+                  <strong>Seal No.:</strong> <span id="summary-sealNo"></span>
+                </li>
+                <li>
+                  <strong>Company:</strong> <span id="summary-company"></span>
+                </li>
+                <li><strong>Zone:</strong> <span id="summary-zone"></span></li>
+                <li>
+                  <strong>Issued By:</strong> <span id="summary-issueBy"></span>
+                </li>
+              </ul>
+            </div>
+            <div class="space-y-4">
+              <h3 class="text-xl font-semibold text-gray-700">
+                Supplier Details
+              </h3>
+              <div class="overflow-x-auto rounded-lg shadow-md">
+                <table class="min-w-full bg-white">
+                  <thead>
+                    <tr
+                      class="bg-indigo-500 text-white uppercase text-sm leading-normal"
+                    >
+                      <th class="py-3 px-4 text-left">Supplier Name</th>
+                      <th class="py-3 px-4 text-left">PTB</th>
+                      <th class="py-3 px-4 text-left">CPB</th>
+                      <th class="py-3 px-4 text-left">MOV</th>
+                      <th class="py-3 px-4 text-left">STP</th>
+                      <th class="py-3 px-4 text-left">PL</th>
+                      <th class="py-3 px-4 text-left">RP</th>
+                      <th class="py-3 px-4 text-left font-bold">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody
+                    id="summary-supplier-table-body"
+                    class="text-gray-600 text-sm font-light"
+                  ></tbody>
+                  <tfoot
+                    id="summary-supplier-table-footer"
+                    class="text-gray-800 text-sm font-bold bg-indigo-100"
+                  >
+                    <tr>
+                      <td class="py-3 px-4 text-right">Total:</td>
+                      <td id="summary-total-ptb" class="py-3 px-4 text-left">
+                        0
+                      </td>
+                      <td id="summary-total-cpb" class="py-3 px-4 text-left">
+                        0
+                      </td>
+                      <td id="summary-total-mov" class="py-3 px-4 text-left">
+                        0
+                      </td>
+                      <td id="summary-total-stp" class="py-3 px-4 text-left">
+                        0
+                      </td>
+                      <td id="summary-total-pl" class="py-3 px-4 text-left">
+                        0
+                      </td>
+                      <td id="summary-total-rp" class="py-3 px-4 text-left">
+                        0
+                      </td>
+                      <!-- Removed Tailwind classes to let CSS handle it -->
+                      <td
+                        id="summary-total-row-sum"
+                        class="py-3 px-4 text-left"
+                      >
+                        0
+                      </td>
+                    </tr>
+                    <tr class="bg-indigo-200">
+                      <td class="py-3 px-4 text-right font-bold text-lg">
+                        Grand Total:
+                      </td>
+                      <td
+                        id="summary-grand-total"
+                        colspan="7"
+                        class="py-3 px-4 text-left font-bold text-lg"
+                      >
+                        0
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+            <div class="flex justify-end space-x-4 mt-8 no-print">
+              <a
+                id="back-to-menu-summary"
+                href="../index.html"
+                class="flex items-center justify-center px-6 py-3 bg-gray-400 text-white rounded-lg shadow-md hover:bg-gray-500 transition-colors duration-200 no-underline"
+                >Back to Menu</a
+              >
+              <button
+                id="print-btn"
+                class="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-200"
+              >
+                Print
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Alert -->
+    <div
+      id="alert-modal"
+      class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 hidden"
+    >
+      <div
+        class="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white"
+      >
+        <div class="mt-3 text-center">
+          <div
+            id="modal-icon-container"
+            class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100"
+          ></div>
+          <h3
+            id="modal-title"
+            class="text-lg leading-6 font-medium text-gray-900 mt-2"
+          >
+            Error!
+          </h3>
+          <div class="mt-2 px-7 py-3">
+            <p id="modal-message" class="text-sm text-gray-500"></p>
+          </div>
+          <div class="items-center px-4 py-3">
+            <button
+              id="modal-close-btn"
+              class="px-4 py-2 bg-red-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Confirm -->
+    <div
+      id="confirm-modal"
+      class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 hidden"
+    >
+      <div
+        class="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white"
+      >
+        <div class="mt-3 text-center">
+          <h3 class="text-lg leading-6 font-medium text-gray-900 mt-2">
+            Confirmation
+          </h3>
+          <div class="mt-2 px-7 py-3">
+            <p id="confirm-modal-message" class="text-sm text-gray-500"></p>
+          </div>
+          <div class="flex justify-center items-center px-4 py-3 space-x-4">
+            <button
+              id="confirm-modal-cancel-btn"
+              class="px-4 py-2 bg-gray-300 text-gray-800 rounded-md"
+            >
+              Cancel
+            </button>
+            <button
+              id="confirm-modal-ok-btn"
+              class="px-4 py-2 bg-yellow-500 text-white rounded-md"
+            >
+              Confirm
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <datalist id="supplier-name-list"></datalist>
+
+    <script type="module" src="../js/issue.js"></script>
+  </body>
+</html>

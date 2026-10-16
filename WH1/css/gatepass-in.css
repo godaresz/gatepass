@@ -1,0 +1,172 @@
+/* General Body Styles */
+body {
+	font-family: "Sarabun", "Inter", sans-serif;
+}
+
+/* Custom Styles */
+.gatepassIN_logo-blend {
+	mix-blend-mode: multiply;
+}
+
+/* Added: Style for the Total column input to be gray */
+.gatepassIN_rowTotalInput {
+	background-color: #e5e7eb !important; /* Gray-200 */
+}
+
+#gatepassIN_supplierTableContainer {
+	/* CHANGED: Increased max-height to use more viewport height */
+	max-height: 75vh;
+	overflow-y: auto;
+	position: relative;
+}
+
+#gatepassIN_supplierTable thead {
+	position: sticky;
+	top: 0;
+	z-index: 10;
+}
+
+#gatepassIN_supplierTable tfoot {
+	position: sticky;
+	bottom: 0;
+	z-index: 10;
+}
+
+#gatepassIN_alertModal {
+	z-index: 60;
+}
+
+/* --- START: Gatepass IN Print Styles --- */
+@media print {
+	@page {
+		size: A4;
+		margin: 0.5cm 1cm;
+	}
+
+	body {
+		font-family: "Sarabun", "Inter", sans-serif;
+		font-size: 8pt;
+		-webkit-print-color-adjust: exact !important;
+		print-color-adjust: exact !important;
+	}
+
+	/* Hide all elements by default for printing */
+	body * {
+		visibility: hidden;
+	}
+
+	/* Make only the summary page and its children visible */
+	#gatepassIN_summaryPage,
+	#gatepassIN_summaryPage * {
+		visibility: visible;
+	}
+
+	#gatepassIN_summaryPage {
+		position: absolute;
+		left: 0;
+		top: 0;
+		width: 100%;
+		padding: 0;
+		margin: 0;
+		border: none;
+		box-shadow: none;
+	}
+
+	/* Hide elements that should not be printed */
+	.gatepassIN_noPrint,
+	.no-print {
+		display: none !important;
+	}
+
+	/* Display the print-specific version */
+	#gatepassIN_printVersion {
+		display: block !important;
+	}
+
+	#gatepassIN_printHeader {
+		position: relative;
+		text-align: center;
+		min-height: 40px;
+	}
+
+	#gatepassIN_printHeaderLogo {
+		position: absolute;
+		right: 0;
+		top: 0;
+		width: 100px;
+	}
+
+	#gatepassIN_printHeaderText {
+		display: inline-block;
+	}
+
+	#gatepassIN_printHeaderText h1 {
+		font-size: 1.1rem;
+		font-weight: bold;
+		margin: 0;
+	}
+
+	#gatepassIN_printHeaderText p {
+		font-size: 0.8rem;
+		margin: 0;
+	}
+
+	#gatepassIN_printTitle {
+		margin-bottom: 1cm;
+		text-align: center;
+	}
+
+	#gatepassIN_printTitle h2 {
+		font-size: 1rem;
+		font-weight: bold;
+		margin: 0;
+	}
+
+	#gatepassIN_printTitle p {
+		font-size: 0.8rem;
+		margin: 0;
+	}
+
+	#gatepassIN_printDetails {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: 0.1rem 1rem;
+		margin-bottom: 0.5cm;
+		font-size: 0.8rem;
+	}
+
+	#gatepassIN_printDetails div {
+		display: flex;
+	}
+
+	#gatepassIN_printDetails strong {
+		width: 100px;
+		display: inline-block;
+	}
+
+	#gatepassIN_printTable table {
+		table-layout: fixed;
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 7pt;
+	}
+
+	#gatepassIN_printTable th,
+	#gatepassIN_printTable td {
+		border: 1px solid black;
+		padding: 1px;
+		text-align: center;
+		height: 14px;
+		word-wrap: break-word;
+	}
+
+	#gatepassIN_printTable th {
+		background-color: #e6deb8 !important;
+		font-weight: bold;
+	}
+
+	#gatepassIN_printTable tfoot td {
+		background-color: #d2c699 !important;
+	}
+}
+/* --- END: Gatepass IN Print Styles --- */

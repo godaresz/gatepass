@@ -1,0 +1,821 @@
+
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gatepass Record - LDC-GW</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Sarabun:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../css/record.css" />
+  </head>
+  <body class="bg-gray-100 min-h-screen antialiased text-gray-800">
+    <!-- Credit Badge -->
+    <div
+      class="no-print fixed top-0 left-0 p-1 text-xs bg-white/50 text-gray-600 z-50 rounded-br-lg font-bold"
+    >
+      Made By Suwarot Thanabat L150081
+    </div>
+
+    <!-- User Session View (Top Right) -->
+    <div
+      id="user-session-view"
+      class="hidden no-print fixed top-0 right-0 p-2 bg-white/70 text-gray-800 z-50 rounded-bl-lg text-xs shadow-md flex items-center"
+    >
+      <span class="mr-2"
+        >Logged in as:
+        <strong id="logged-in-username" class="font-bold"></strong
+      ></span>
+
+      <!-- Manage Users Button -->
+      <button
+        id="manage-users-btn"
+        class="ml-2 px-2 py-1 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors font-semibold"
+      >
+        Manage Users
+      </button>
+
+      <button
+        id="change-password-btn"
+        class="ml-2 text-blue-600 hover:underline"
+      >
+        Change Password
+      </button>
+      <button id="logout-btn" class="ml-2 text-red-600 hover:underline">
+        Logout
+      </button>
+    </div>
+
+    <div class="p-4 md:p-8">
+      <!-- History Page Container -->
+      <div
+        id="history-page"
+        class="bg-white p-6 md:p-8 rounded-xl shadow-lg my-8 transition-opacity duration-300"
+      >
+        <div
+          class="flex flex-col md:flex-row justify-between items-center mb-6 space-y-4 md:space-y-0"
+        >
+          <h2 class="text-3xl font-bold text-indigo-600">Gatepass History</h2>
+          <div class="flex items-center space-x-4">
+            <img
+              src="../picture/logo.png"
+              alt="Logo"
+              class="w-32 logo-blend"
+              onerror="this.onerror=null;this.src='https://placehold.co/128x51/ffffff/334155?text=Logo';"
+            />
+            <div class="flex space-x-2 no-print">
+              <input
+                type="file"
+                id="history-csv-file-input"
+                class="hidden"
+                accept=".csv"
+              />
+              <!-- Back to Menu Button -->
+              <a
+                href="../index.html"
+                class="bg-gray-400 text-white px-4 py-2 rounded-lg shadow-md hover:bg-gray-500 transition-colors duration-200 text-sm flex items-center no-underline"
+                >Back to Menu</a
+              >
+
+              <button
+                id="upload-history-csv-btn"
+                class="bg-orange-500 text-white px-4 py-2 rounded-lg shadow-md hover:bg-orange-600 transition-colors duration-200 text-sm"
+              >
+                Upload CSV
+              </button>
+              <button
+                id="export-history-csv-btn"
+                class="bg-blue-500 text-white px-4 py-2 rounded-lg shadow-md hover:bg-blue-600 transition-colors duration-200 text-sm"
+              >
+                Export to CSV
+              </button>
+              <button
+                id="delete-all-history-btn"
+                class="hidden bg-red-600 text-white px-4 py-2 rounded-lg shadow-md hover:bg-red-700 transition-colors duration-200 text-sm"
+              >
+                Delete All
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Search Filters -->
+        <div class="space-y-4 mb-6 p-4 border rounded-lg bg-gray-50 no-print">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="lg:col-span-4">
+              <label
+                for="search-input"
+                class="block text-sm font-medium text-gray-700"
+                >ค้นหาทั่วไป (Gatepass No., ทะเบียนรถ, ชื่อคนขับ, บริษัท, โซน,
+                ซัพพลายเออร์)</label
+              >
+              <input
+                type="text"
+                id="search-input"
+                autocomplete="off"
+                placeholder="พิมพ์เพื่อค้นหา..."
+                class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+              />
+            </div>
+            <div>
+              <label
+                for="filter-start-date"
+                class="block text-sm font-medium text-gray-700"
+                >ตั้งแต่</label
+              >
+              <div class="flex space-x-2 mt-1">
+                <input
+                  type="date"
+                  id="filter-start-date"
+                  class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <input
+                  type="time"
+                  id="filter-start-time"
+                  class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+            <div>
+              <label
+                for="filter-end-date"
+                class="block text-sm font-medium text-gray-700"
+                >ถึง</label
+              >
+              <div class="flex space-x-2 mt-1">
+                <input
+                  type="date"
+                  id="filter-end-date"
+                  class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <input
+                  type="time"
+                  id="filter-end-time"
+                  class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+            <div>
+              <label
+                for="filter-history-truckNo"
+                class="block text-sm font-medium text-gray-700"
+                >ทะเบียนรถ</label
+              >
+              <input
+                type="text"
+                id="filter-history-truckNo"
+                autocomplete="off"
+                placeholder="ทั้งหมด"
+                class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label
+                for="filter-history-company"
+                class="block text-sm font-medium text-gray-700"
+                >บริษัท</label
+              >
+              <input
+                type="text"
+                id="filter-history-company"
+                list="history-company-list"
+                autocomplete="off"
+                placeholder="ทั้งหมด"
+                class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <datalist id="history-company-list"></datalist>
+            </div>
+            <div>
+              <label
+                for="filter-history-zone"
+                class="block text-sm font-medium text-gray-700"
+                >โซน</label
+              >
+              <input
+                type="text"
+                id="filter-history-zone"
+                list="history-zone-list"
+                autocomplete="off"
+                placeholder="ทั้งหมด"
+                class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <datalist id="history-zone-list"></datalist>
+            </div>
+            <div>
+              <label
+                for="filter-history-supplier"
+                class="block text-sm font-medium text-gray-700"
+                >ซัพพลายเออร์</label
+              >
+              <input
+                type="text"
+                id="filter-history-supplier"
+                list="history-supplier-list"
+                autocomplete="off"
+                placeholder="ทั้งหมด"
+                class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <datalist id="history-supplier-list"></datalist>
+            </div>
+            <div>
+              <label
+                for="filter-history-status"
+                class="block text-sm font-medium text-gray-700"
+                >Status</label
+              >
+              <select
+                id="filter-history-status"
+                class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="all">ทั้งหมด</option>
+                <option value="Empty-Out">Empty-Out</option>
+                <option value="Empty-IN">Empty-IN</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex justify-end items-center pt-4 gap-4">
+            <button
+              id="search-history-btn"
+              class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-200 text-sm flex items-center gap-2"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="currentColor"
+                viewBox="0 0 16 16"
+              >
+                <path
+                  d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"
+                />
+              </svg>
+              Search
+            </button>
+            <button
+              id="clear-history-filters-btn"
+              class="bg-amber-500 text-white px-4 py-2 rounded-lg shadow-md hover:bg-amber-600 transition-colors duration-200 text-sm flex items-center gap-2"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="currentColor"
+                viewBox="0 0 16 16"
+              >
+                <path
+                  d="M8.086 2.207a2 2 0 0 1 2.828 0l3.879 3.879a2 2 0 0 1 0 2.828l-5.5 5.5A2 2 0 0 1 7.879 15H5.12a2 2 0 0 1-1.414-.586l-2.5-2.5a2 2 0 0 1 0-2.828zm2.121.707a1 1 0 0 0-1.414 0L4.16 7.547l5.293 5.293 4.633-4.633a1 1 0 0 0 0-1.414zM8.746 13.547 3.453 8.254 1.914 9.793a1 1 0 0 0 0 1.414l2.5 2.5a1 1 0 0 0 .707.293H7.88a1 1 0 0 0 .707-.293z"
+                />
+              </svg>
+              Clear Filters
+            </button>
+          </div>
+        </div>
+
+        <div id="history-list" class="overflow-x-auto">
+          <table class="min-w-full bg-white">
+            <thead>
+              <tr
+                class="bg-indigo-500 text-white uppercase text-sm leading-normal"
+              >
+                <th class="py-3 px-4 text-left">Date</th>
+                <th class="py-3 px-4 text-left">Gatepass No.</th>
+                <th class="py-3 px-4 text-left">Driver name</th>
+                <th class="py-3 px-4 text-left">Truck no.</th>
+                <th class="py-3 px-4 text-left">Company</th>
+                <th class="py-3 px-4 text-left">Zone</th>
+                <th class="py-3 px-4 text-left">SUPPLIER</th>
+                <th class="py-3 px-4 text-left">PTB</th>
+                <th class="py-3 px-4 text-left">CPB</th>
+                <th class="py-3 px-4 text-left">MOV</th>
+                <th class="py-3 px-4 text-left">STP</th>
+                <th class="py-3 px-4 text-left">PALLET</th>
+                <th class="py-3 px-4 text-left">ROPE</th>
+                <th class="py-3 px-4 text-left">Issue By</th>
+                <th class="py-3 px-4 text-left">IN:เล่มที่ Out:Seal No.</th>
+                <th class="py-3 px-4 text-left">Status</th>
+                <th class="py-3 px-4 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody
+              id="history-table-body"
+              class="text-gray-600 text-sm font-light"
+            >
+              <tr>
+                <td colspan="17" class="py-4 text-center text-gray-500">
+                  กรุณากดปุ่ม Search เพื่อแสดงข้อมูล
+                </td>
+              </tr>
+            </tbody>
+            <tfoot
+              id="history-table-footer"
+              class="bg-indigo-100 font-bold text-sm"
+            ></tfoot>
+          </table>
+        </div>
+        <div
+          id="history-pagination-controls"
+          class="mt-4 flex justify-center items-center space-x-4 no-print"
+        >
+          <button
+            id="load-more-history-btn"
+            class="hidden bg-cyan-600 text-white px-6 py-2 rounded-lg shadow-md hover:bg-cyan-700 transition-colors duration-200"
+          >
+            Load More
+          </button>
+          <button
+            id="load-all-history-btn"
+            class="hidden bg-teal-600 text-white px-6 py-2 rounded-lg shadow-md hover:bg-teal-700 transition-colors duration-200"
+          >
+            Load All
+          </button>
+          <button
+            id="clear-load-history-btn"
+            class="hidden bg-amber-500 text-white px-6 py-2 rounded-lg shadow-md hover:bg-amber-600 transition-colors duration-200"
+          >
+            Clear and Reset
+          </button>
+        </div>
+      </div>
+
+      <!-- HIDDEN: Print Version (Used for "View PDF" feature) -->
+      <!-- This matches the structure in index.html for printing logic -->
+      <div id="print-version" class="hidden">
+        <div id="print-header">
+          <img
+            id="print-header-logo"
+            src="../picture/logo.png"
+            alt="Logo"
+            onerror="this.onerror=null;this.src='https://placehold.co/200x80/ffffff/334155?text=Logo';"
+          />
+          <div id="print-header-text">
+            <h1>บริษัท ไลเน็กซ์ อินเตอร์เนชั่นแนล (ประเทศไทย) จำกัด</h1>
+            <p>LINEX INTERNATIONAL (THAILAND) Co.,Ltd.</p>
+          </div>
+        </div>
+        <div id="print-title">
+          <h2 class="font-bold mt-2">GATE PASS: EMPTY PACKAGE LDC-GW</h2>
+          <p>เอกสารใบผ่านยาม (บรรจุภัณฑ์เปล่า)</p>
+        </div>
+        <div id="print-details">
+          <div><strong>Date:</strong> <span id="print-date"></span></div>
+          <div>
+            <strong>Gate Pass No.:</strong> <span id="print-gatepassId"></span>
+          </div>
+          <div>
+            <strong>Driver Name:</strong> <span id="print-driverName"></span>
+          </div>
+          <div>
+            <strong>Truck No.:</strong> <span id="print-truckNo"></span>
+          </div>
+          <div><strong>Company:</strong> <span id="print-company"></span></div>
+          <div><strong>Zone:</strong> <span id="print-zone"></span></div>
+          <div><strong>Seal No.:</strong> <span id="print-sealNo"></span></div>
+          <div>
+            <strong>Issue Date :</strong>
+            <span id="print-issue-datetime"></span>
+          </div>
+        </div>
+        <div id="print-table">
+          <table>
+            <thead>
+              <tr>
+                <th>SUPPLIER</th>
+                <th>PTB<br />กล่องพลาสติก</th>
+                <th>CPB<br />กล่องลูกฟูก</th>
+                <th>MOV<br />แร็คมีล้อ</th>
+                <th>STP<br />แร็คไม่มีล้อ</th>
+                <th>PALLET<br />พาเลท</th>
+                <th>Rope<br />เชือก</th>
+                <th>TOTAL<br />รวม</th>
+              </tr>
+            </thead>
+            <tbody id="print-supplier-table-body"></tbody>
+            <tfoot id="print-supplier-table-footer"></tfoot>
+          </table>
+        </div>
+        <div id="print-footer">
+          <div>
+            <div class="signature-box">
+              <span id="print-worker-name"></span>
+            </div>
+            <p>Worker (พนักงาน)<br />LINEX</p>
+          </div>
+          <div>
+            <div class="signature-box"></div>
+            <p>Foreman (หัวหน้างาน)<br />LINEX</p>
+          </div>
+          <div>
+            <div class="signature-box">
+              <span id="print-driver-signature"></span>
+            </div>
+            <p>
+              Driver (พนักงานขับรถ)<br /><span id="print-driver-company"></span>
+            </p>
+          </div>
+          <div>
+            <div class="signature-box"></div>
+            <p>Security guard (รปภ.)<br />ISUZU MOTORS (THAILAND)</p>
+          </div>
+        </div>
+      </div>
+      <div
+        id="print-message"
+        class="hidden no-print bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded-lg shadow-sm"
+        role="alert"
+      >
+        <p class="font-bold">Print Initiated!</p>
+        <p>Please check your print dialog to save or print the document.</p>
+      </div>
+    </div>
+
+    <!-- MODAL: Alert -->
+    <div
+      id="alert-modal"
+      class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 hidden"
+    >
+      <div
+        class="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white"
+      >
+        <div class="mt-3 text-center">
+          <div
+            id="modal-icon-container"
+            class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100"
+          ></div>
+          <h3
+            id="modal-title"
+            class="text-lg leading-6 font-medium text-gray-900 mt-2"
+          >
+            Error!
+          </h3>
+          <div class="mt-2 px-7 py-3">
+            <p id="modal-message" class="text-sm text-gray-500"></p>
+          </div>
+          <div class="items-center px-4 py-3">
+            <button
+              id="modal-close-btn"
+              class="px-4 py-2 bg-red-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Confirm -->
+    <div
+      id="confirm-modal"
+      class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 hidden"
+    >
+      <div
+        class="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white"
+      >
+        <div class="mt-3 text-center">
+          <div
+            class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100"
+          >
+            <svg
+              class="h-6 w-6 text-yellow-600"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+          </div>
+          <h3 class="text-lg leading-6 font-medium text-gray-900 mt-2">
+            Confirmation
+          </h3>
+          <div class="mt-2 px-7 py-3">
+            <p id="confirm-modal-message" class="text-sm text-gray-500"></p>
+          </div>
+          <div class="flex justify-center items-center px-4 py-3 space-x-4">
+            <button
+              id="confirm-modal-cancel-btn"
+              class="px-4 py-2 bg-gray-300 text-gray-800 text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-400 focus:outline-none"
+            >
+              Cancel
+            </button>
+            <button
+              id="confirm-modal-ok-btn"
+              class="px-4 py-2 bg-yellow-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-yellow-600 focus:outline-none"
+            >
+              Confirm
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Login -->
+    <div
+      id="login-modal"
+      class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+    >
+      <div
+        class="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white"
+      >
+        <h3 class="text-2xl font-bold text-center text-gray-800 mb-4">Login</h3>
+        <form id="login-form">
+          <div class="space-y-4">
+            <div>
+              <label
+                for="username"
+                class="block text-sm font-medium text-gray-700"
+                >Username</label
+              >
+              <input
+                type="text"
+                id="username"
+                name="username"
+                list="username-list"
+                autocomplete="off"
+                required
+                class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <datalist id="username-list"></datalist>
+            </div>
+            <div>
+              <label
+                for="password"
+                class="block text-sm font-medium text-gray-700"
+                >Password</label
+              >
+              <input
+                type="password"
+                id="password"
+                name="password"
+                autocomplete="current-password"
+                required
+                class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <p id="login-error" class="text-red-500 text-xs text-center"></p>
+          </div>
+          <div class="flex justify-end items-center mt-6 space-x-4">
+            <!-- Cancel button redirects to index.html -->
+            <a
+              href="../index.html"
+              class="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 text-center no-underline"
+              >Cancel</a
+            >
+            <button
+              type="submit"
+              class="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700"
+            >
+              Login
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: Change Password -->
+    <div
+      id="change-password-modal"
+      class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+    >
+      <div
+        class="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white"
+      >
+        <h3 class="text-2xl font-bold text-center text-gray-800 mb-4">
+          Change Password
+        </h3>
+        <form id="change-password-form">
+          <div class="space-y-4">
+            <div>
+              <label
+                for="oldPassword"
+                class="block text-sm font-medium text-gray-700"
+                >Old Password</label
+              >
+              <input
+                type="password"
+                id="oldPassword"
+                required
+                class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label
+                for="newPassword"
+                class="block text-sm font-medium text-gray-700"
+                >New Password</label
+              >
+              <input
+                type="password"
+                id="newPassword"
+                required
+                class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label
+                for="confirmNewPassword"
+                class="block text-sm font-medium text-gray-700"
+                >Confirm New Password</label
+              >
+              <input
+                type="password"
+                id="confirmNewPassword"
+                required
+                class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <p
+              id="change-password-error"
+              class="text-red-500 text-xs text-center"
+            ></p>
+          </div>
+          <div class="flex justify-end items-center mt-6 space-x-4">
+            <button
+              type="button"
+              id="change-password-cancel-btn"
+              class="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              Save Changes
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: Manage Users -->
+    <div
+      id="user-management-modal"
+      class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+    >
+      <div
+        class="relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white"
+      >
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-2xl font-bold text-gray-800">User Management</h3>
+          <button
+            id="close-user-management-btn"
+            class="text-gray-500 hover:text-gray-700"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Add User Section (Available to everyone) -->
+        <div class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
+          <h4 class="text-lg font-semibold mb-3 text-indigo-700">
+            Add New User
+          </h4>
+          <form id="add-user-form" class="space-y-3">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="md:col-span-2">
+                <label
+                  for="new-username"
+                  class="block text-xs font-medium text-gray-700 uppercase"
+                  >Username</label
+                >
+                <input
+                  type="text"
+                  id="new-username"
+                  required
+                  autocomplete="off"
+                  class="uppercase-input mt-1 w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 text-sm"
+                />
+              </div>
+              <div>
+                <label
+                  for="new-user-password"
+                  class="block text-xs font-medium text-gray-700"
+                  >Password</label
+                >
+                <input
+                  type="password"
+                  id="new-user-password"
+                  required
+                  autocomplete="new-password"
+                  class="mt-1 w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 text-sm"
+                />
+              </div>
+              <div>
+                <label
+                  for="confirm-new-user-password"
+                  class="block text-xs font-medium text-gray-700"
+                  >Confirm Password</label
+                >
+                <input
+                  type="password"
+                  id="confirm-new-user-password"
+                  required
+                  autocomplete="new-password"
+                  class="mt-1 w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 text-sm"
+                />
+              </div>
+            </div>
+            <div class="flex justify-end">
+              <button
+                type="submit"
+                class="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700 text-sm font-medium"
+              >
+                Create User
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- User List Section -->
+        <div>
+          <h4 class="text-lg font-semibold mb-3 text-gray-700">
+            Existing Users
+          </h4>
+          <div class="overflow-y-auto max-h-60 border rounded-lg">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-100 sticky top-0">
+                <tr>
+                  <th
+                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Username
+                  </th>
+                  <th
+                    class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody
+                id="user-list-body"
+                class="bg-white divide-y divide-gray-200"
+              >
+                <!-- User rows here -->
+              </tbody>
+            </table>
+          </div>
+          <p
+            id="user-management-info"
+            class="text-xs text-gray-500 mt-2 text-right"
+          >
+            Only ADMIN can delete users.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Progress -->
+    <div
+      id="progress-modal"
+      class="hidden fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50"
+    >
+      <div
+        class="relative top-1/3 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white"
+      >
+        <div class="mt-3 text-center">
+          <h3
+            id="progress-modal-title"
+            class="text-lg leading-6 font-medium text-gray-900"
+          >
+            Uploading...
+          </h3>
+          <div class="mt-4 px-7 py-3">
+            <div class="w-full bg-gray-200 rounded-full h-4">
+              <div
+                id="progress-bar"
+                class="bg-blue-600 h-4 rounded-full text-xs text-white text-center leading-none"
+                style="width: 0%"
+              ></div>
+            </div>
+            <p id="progress-text" class="text-sm text-gray-600 mt-2">0%</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="../js/record.js"></script>
+  </body>
+</html>

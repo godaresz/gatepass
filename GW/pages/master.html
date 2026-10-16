@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Master Maintenance - LDC-GW</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Sarabun:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../css/master.css" />
+  </head>
+  <body class="bg-gray-100 min-h-screen antialiased text-gray-800">
+    <!-- Credit Badge -->
+    <div
+      class="no-print fixed top-0 left-0 p-1 text-xs bg-white/50 text-gray-600 z-50 rounded-br-lg font-bold"
+    >
+      Made By Suwarot Thanabat L150081
+    </div>
+
+    <!-- User Session View (Top Right) -->
+    <div
+      id="user-session-view"
+      class="hidden no-print fixed top-0 right-0 p-2 bg-white/70 text-gray-800 z-50 rounded-bl-lg text-xs shadow-md flex items-center"
+    >
+      <span class="mr-2">Logged in as: <strong id="logged-in-username" class="font-bold"></strong></span>
+      
+      <!-- New Manage Users Button -->
+      <button
+        id="manage-users-btn"
+        class="ml-2 px-2 py-1 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors font-semibold"
+      >
+        Manage Users
+      </button>
+
+      <button
+        id="change-password-btn"
+        class="ml-2 text-blue-600 hover:underline"
+      >
+        Change Password
+      </button>
+      <button id="logout-btn" class="ml-2 text-red-600 hover:underline">
+        Logout
+      </button>
+    </div>
+
+    <div class="p-4 md:p-8">
+      <!-- Master Maintenance Container -->
+      <div
+        id="master-maintenance-page"
+        class="bg-white p-6 md:p-8 rounded-xl shadow-lg my-8 transition-opacity duration-300"
+      >
+        <div
+          class="flex flex-col md:flex-row justify-between items-center mb-6 space-y-4 md:space-y-0"
+        >
+          <h2 class="text-3xl font-bold text-indigo-600">Master Maintenance</h2>
+          <div class="flex items-center space-x-4">
+            <img
+              src="../picture/logo.png"
+              alt="Logo"
+              class="w-32 logo-blend"
+              onerror="this.onerror=null;this.src='https://placehold.co/128x51/ffffff/334155?text=Logo';"
+            />
+            <div class="flex flex-wrap gap-2">
+              <input
+                type="file"
+                id="csv-file-input"
+                class="hidden"
+                accept=".csv"
+              />
+              <!-- Back to Menu Button links to index.html -->
+              <a
+                href="../index.html"
+                id="back-to-menu-btn"
+                class="flex items-center justify-center bg-gray-400 text-white px-4 py-2 rounded-lg shadow-md hover:bg-gray-500 transition-colors duration-200 text-sm no-underline"
+              >
+                Back to Menu
+              </a>
+              <button
+                id="upload-csv-btn"
+                class="bg-orange-500 text-white px-4 py-2 rounded-lg shadow-md hover:bg-orange-600 transition-colors duration-200 text-sm"
+              >
+                Upload CSV
+              </button>
+              <button
+                id="export-csv-btn"
+                class="bg-blue-500 text-white px-4 py-2 rounded-lg shadow-md hover:bg-blue-600 transition-colors duration-200 text-sm"
+              >
+                Export to CSV
+              </button>
+              <button
+                id="save-master-btn"
+                class="bg-green-500 text-white px-4 py-2 rounded-lg shadow-md hover:bg-green-600 transition-colors duration-200 text-sm"
+              >
+                Save Changes
+              </button>
+              <button
+                id="delete-all-master-btn"
+                class="hidden bg-red-600 text-white px-4 py-2 rounded-lg shadow-md hover:bg-red-700 transition-colors duration-200 text-sm"
+              >
+                Delete All
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Master Table -->
+        <div id="master-table-container">
+          <table class="min-w-full bg-white">
+            <thead>
+              <tr
+                class="bg-gray-700 text-white uppercase text-sm leading-normal"
+              >
+                <th class="py-3 px-4 text-left">MILK RUN COMPANY</th>
+                <th class="py-3 px-4 text-left">Zone</th>
+                <th class="py-3 px-4 text-left">ISSUE BY</th>
+                <th class="py-3 px-4 text-left">SUPPLIER</th>
+                <th class="py-3 px-4 text-left">Check (ห้ามแก้ไข)</th>
+                <th class="py-3 px-4 text-left">COMPANY</th>
+                <th class="py-3 px-4 text-left">Zone</th>
+                <th class="py-3 px-4 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody
+              id="master-table-body"
+              class="text-gray-600 text-sm font-light"
+            >
+              <!-- Rows will be populated by JS -->
+            </tbody>
+          </table>
+        </div>
+        <div class="mt-4">
+          <button
+            id="add-master-row-btn"
+            class="bg-indigo-500 text-white px-4 py-2 rounded-lg shadow-md hover:bg-indigo-600 transition-colors duration-200 text-sm"
+          >
+            Add New Row
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Alert -->
+    <div
+      id="alert-modal"
+      class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 hidden"
+    >
+      <div
+        class="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white"
+      >
+        <div class="mt-3 text-center">
+          <div
+            id="modal-icon-container"
+            class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100"
+          ></div>
+          <h3
+            id="modal-title"
+            class="text-lg leading-6 font-medium text-gray-900 mt-2"
+          >
+            Error!
+          </h3>
+          <div class="mt-2 px-7 py-3">
+            <p id="modal-message" class="text-sm text-gray-500">
+              Validation failed.
+            </p>
+          </div>
+          <div class="items-center px-4 py-3">
+            <button
+              id="modal-close-btn"
+              class="px-4 py-2 bg-red-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Confirm -->
+    <div
+      id="confirm-modal"
+      class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 hidden"
+    >
+      <div
+        class="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white"
+      >
+        <div class="mt-3 text-center">
+          <div
+            class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100"
+          >
+            <svg
+              class="h-6 w-6 text-yellow-600"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+          </div>
+          <h3 class="text-lg leading-6 font-medium text-gray-900 mt-2">
+            Confirmation
+          </h3>
+          <div class="mt-2 px-7 py-3">
+            <p id="confirm-modal-message" class="text-sm text-gray-500"></p>
+          </div>
+          <div class="flex justify-center items-center px-4 py-3 space-x-4">
+            <button
+              id="confirm-modal-cancel-btn"
+              class="px-4 py-2 bg-gray-300 text-gray-800 text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-400 focus:outline-none"
+            >
+              Cancel
+            </button>
+            <button
+              id="confirm-modal-ok-btn"
+              class="px-4 py-2 bg-yellow-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-yellow-600 focus:outline-none"
+            >
+              Confirm
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Login -->
+    <div
+      id="login-modal"
+      class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+    >
+      <div
+        class="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white"
+      >
+        <h3 class="text-2xl font-bold text-center text-gray-800 mb-4">Login</h3>
+        <form id="login-form">
+          <div class="space-y-4">
+            <div>
+              <label
+                for="username"
+                class="block text-sm font-medium text-gray-700"
+                >Username</label
+              >
+              <input
+                type="text"
+                id="username"
+                name="username"
+                list="username-list"
+                autocomplete="off"
+                required
+                class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <datalist id="username-list"></datalist>
+            </div>
+            <div>
+              <label
+                for="password"
+                class="block text-sm font-medium text-gray-700"
+                >Password</label
+              >
+              <input
+                type="password"
+                id="password"
+                name="password"
+                autocomplete="current-password"
+                required
+                class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <p id="login-error" class="text-red-500 text-xs text-center"></p>
+          </div>
+          <div class="flex justify-end items-center mt-6 space-x-4">
+            <!-- Cancel button redirects to index.html to enforce logic -->
+            <a
+              href="../index.html"
+              class="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 text-center no-underline"
+              >Cancel</a
+            >
+            <button
+              type="submit"
+              class="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700"
+            >
+              Login
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: Change Password -->
+    <div
+      id="change-password-modal"
+      class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+    >
+      <div
+        class="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white"
+      >
+        <h3 class="text-2xl font-bold text-center text-gray-800 mb-4">
+          Change Password
+        </h3>
+        <form id="change-password-form">
+          <div class="space-y-4">
+            <div>
+              <label
+                for="oldPassword"
+                class="block text-sm font-medium text-gray-700"
+                >Old Password</label
+              >
+              <input
+                type="password"
+                id="oldPassword"
+                required
+                class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label
+                for="newPassword"
+                class="block text-sm font-medium text-gray-700"
+                >New Password</label
+              >
+              <input
+                type="password"
+                id="newPassword"
+                required
+                class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label
+                for="confirmNewPassword"
+                class="block text-sm font-medium text-gray-700"
+                >Confirm New Password</label
+              >
+              <input
+                type="password"
+                id="confirmNewPassword"
+                required
+                class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <p
+              id="change-password-error"
+              class="text-red-500 text-xs text-center"
+            ></p>
+          </div>
+          <div class="flex justify-end items-center mt-6 space-x-4">
+            <button
+              type="button"
+              id="change-password-cancel-btn"
+              class="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              Save Changes
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: Manage Users -->
+    <div
+      id="user-management-modal"
+      class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+    >
+      <div
+        class="relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white"
+      >
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-2xl font-bold text-gray-800">User Management</h3>
+          <button id="close-user-management-btn" class="text-gray-500 hover:text-gray-700">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Add User Section (Available to everyone) -->
+        <div class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
+          <h4 class="text-lg font-semibold mb-3 text-indigo-700">Add New User</h4>
+          <form id="add-user-form" class="space-y-3">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="md:col-span-2">
+                <label for="new-username" class="block text-xs font-medium text-gray-700 uppercase">Username</label>
+                <input type="text" id="new-username" required autocomplete="off" class="uppercase-input mt-1 w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 text-sm">
+              </div>
+              <div>
+                <label for="new-user-password" class="block text-xs font-medium text-gray-700">Password</label>
+                <input type="password" id="new-user-password" required autocomplete="new-password" class="mt-1 w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 text-sm">
+              </div>
+              <div>
+                <label for="confirm-new-user-password" class="block text-xs font-medium text-gray-700">Confirm Password</label>
+                <input type="password" id="confirm-new-user-password" required autocomplete="new-password" class="mt-1 w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 text-sm">
+              </div>
+            </div>
+            <div class="flex justify-end">
+              <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700 text-sm font-medium">Create User</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- User List Section -->
+        <div>
+          <h4 class="text-lg font-semibold mb-3 text-gray-700">Existing Users</h4>
+          <div class="overflow-y-auto max-h-60 border rounded-lg">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-100 sticky top-0">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
+                  <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="user-list-body" class="bg-white divide-y divide-gray-200">
+                <!-- User rows here -->
+              </tbody>
+            </table>
+          </div>
+          <p id="user-management-info" class="text-xs text-gray-500 mt-2 text-right">Only ADMIN can delete users.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Progress -->
+    <div
+      id="progress-modal"
+      class="hidden fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50"
+    >
+      <div
+        class="relative top-1/3 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white"
+      >
+        <div class="mt-3 text-center">
+          <h3
+            id="progress-modal-title"
+            class="text-lg leading-6 font-medium text-gray-900"
+          >
+            Uploading...
+          </h3>
+          <div class="mt-4 px-7 py-3">
+            <div class="w-full bg-gray-200 rounded-full h-4">
+              <div
+                id="progress-bar"
+                class="bg-blue-600 h-4 rounded-full text-xs text-white text-center leading-none"
+                style="width: 0%"
+              ></div>
+            </div>
+            <p id="progress-text" class="text-sm text-gray-600 mt-2">0%</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="../js/master.js"></script>
+  </body>
+</html>

@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="th">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Issue Gatepass IN - LDC-GW</title>
+		<script src="https://cdn.tailwindcss.com"></script>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Sarabun:wght@400;500;700&display=swap"
+			rel="stylesheet"
+		/>
+		<link rel="stylesheet" href="../css/gatepass-in.css" />
+	</head>
+	<body class="bg-gray-100 min-h-screen antialiased text-gray-800">
+		<div
+			class="no-print fixed top-0 left-0 p-1 text-xs bg-white/50 text-gray-600 z-50 rounded-br-lg font-bold"
+		>
+			Made By Suwarot Thanabat L150081
+		</div>
+
+		<div class="p-4 md:p-8">
+			<div
+				id="gatepassIN_page"
+				class="bg-white p-6 md:p-8 rounded-xl shadow-lg my-8 transition-opacity duration-300"
+			>
+				<div class="flex justify-between items-center mb-6 border-b pb-4">
+					<div>
+						<h2 class="text-xl md:text-2xl font-bold text-indigo-600">
+							Issue GatePass : Empty Package-IN
+						</h2>
+						<p class="text-sm text-gray-500">ใบผ่านขารับเข้า LDC-GW</p>
+					</div>
+					<img
+						src="../picture/logo.png"
+						alt="Logo"
+						class="w-32 gatepassIN_logo-blend"
+						onerror="this.onerror=null;this.src='https://placehold.co/128x51/ffffff/334155?text=Logo';"
+					/>
+				</div>
+
+				<form id="gatepassIN_form" class="space-y-6">
+					<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+						<div>
+							<label
+								for="gatepassIN_driverName"
+								class="block text-sm font-medium text-gray-700"
+								>Driver Name</label
+							>
+							<input
+								type="text"
+								id="gatepassIN_driverName"
+								class="uppercase-input mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+								required
+							/>
+						</div>
+						<div>
+							<label
+								for="gatepassIN_truckNo"
+								class="block text-sm font-medium text-gray-700"
+								>Truck No.</label
+							>
+							<input
+								type="text"
+								id="gatepassIN_truckNo"
+								class="uppercase-input mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+								required
+							/>
+						</div>
+						<div>
+							<label
+								for="gatepassIN_issueDateTime"
+								class="block text-sm font-medium text-gray-700"
+								>Date & Time</label
+							>
+							<input
+								type="datetime-local"
+								id="gatepassIN_issueDateTime"
+								class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+								required
+							/>
+						</div>
+						<div>
+							<label
+								for="gatepassIN_bookNo"
+								class="block text-sm font-medium text-gray-700"
+								>เล่มที่</label
+							>
+							<input
+								type="text"
+								id="gatepassIN_bookNo"
+								class="uppercase-input mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+								required
+							/>
+						</div>
+						<div>
+							<label
+								for="gatepassIN_gatepassNo"
+								class="block text-sm font-medium text-gray-700"
+								>เลขที่ Gatepass</label
+							>
+							<input
+								type="text"
+								id="gatepassIN_gatepassNo"
+								class="uppercase-input mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+								required
+							/>
+						</div>
+						<div>
+							<label
+								for="gatepassIN_issueBy"
+								class="block text-sm font-medium text-gray-700"
+								>Issue By</label
+							>
+							<input
+								type="text"
+								id="gatepassIN_issueBy"
+								list="gatepassIN_issueByList"
+								class="uppercase-input mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+								required
+							/>
+							<datalist id="gatepassIN_issueByList"></datalist>
+						</div>
+					</div>
+
+					<div class="pt-4">
+						<h3 class="text-xl font-bold mb-4 text-indigo-600">
+							Supplier & Item Details
+						</h3>
+						<div id="gatepassIN_supplierTableContainer" class="overflow-x-auto">
+							<table
+								id="gatepassIN_supplierTable"
+								class="min-w-full bg-white text-sm"
+							>
+								<thead class="bg-indigo-500 text-white">
+									<tr>
+										<th class="py-2 px-2 text-left w-[3%]">No.</th>
+										<th class="py-2 px-2 text-left w-[12%]">Company</th>
+										<th class="py-2 px-2 text-left w-[10%]">Zone</th>
+										<th class="py-2 px-2 text-left w-[12%]">Supplier</th>
+										<th class="py-2 px-2 text-center w-[8%]">
+											PTB<br /><span class="font-normal">กล่องพลาสติก</span>
+										</th>
+										<th class="py-2 px-2 text-center w-[8%]">
+											CPB<br /><span class="font-normal">กล่องลูกฟูก</span>
+										</th>
+										<th class="py-2 px-2 text-center w-[8%]">
+											MOV<br /><span class="font-normal">แร็คมีล้อ</span>
+										</th>
+										<th class="py-2 px-2 text-center w-[8%]">
+											STP<br /><span class="font-normal">แร็คไม่มีล้อ</span>
+										</th>
+										<th class="py-2 px-2 text-center w-[8%]">
+											PL<br /><span class="font-normal">พาเลท</span>
+										</th>
+										<th class="py-2 px-2 text-center w-[8%]">
+											RP<br /><span class="font-normal">เชือก</span>
+										</th>
+										<th class="py-2 px-2 text-center w-[8%]">
+											Total<br /><span class="font-normal">รวม</span>
+										</th>
+									</tr>
+								</thead>
+								<tbody id="gatepassIN_supplierTableBody"></tbody>
+								<tfoot class="bg-indigo-500 text-white">
+									<tr>
+										<th colspan="4" class="py-2 px-2 text-right">TOTAL</th>
+										<th
+											id="gatepassIN_total_ptb"
+											class="py-2 px-2 text-center font-normal"
+										>
+											0
+										</th>
+										<th
+											id="gatepassIN_total_cpb"
+											class="py-2 px-2 text-center font-normal"
+										>
+											0
+										</th>
+										<th
+											id="gatepassIN_total_mov"
+											class="py-2 px-2 text-center font-normal"
+										>
+											0
+										</th>
+										<th
+											id="gatepassIN_total_stp"
+											class="py-2 px-2 text-center font-normal"
+										>
+											0
+										</th>
+										<th
+											id="gatepassIN_total_pl"
+											class="py-2 px-2 text-center font-normal"
+										>
+											0
+										</th>
+										<th
+											id="gatepassIN_total_rp"
+											class="py-2 px-2 text-center font-normal"
+										>
+											0
+										</th>
+										<th
+											id="gatepassIN_total_row_sum"
+											class="py-2 px-2 text-center font-bold"
+										>
+											0
+										</th>
+									</tr>
+									<tr>
+										<th colspan="10" class="py-2 px-2 text-right">
+											GRAND TOTAL
+										</th>
+										<th
+											id="gatepassIN_grand_total"
+											class="py-2 px-2 text-center font-bold"
+										>
+											0
+										</th>
+									</tr>
+								</tfoot>
+							</table>
+						</div>
+					</div>
+
+					<div class="flex justify-end space-x-4 mt-8">
+						<button
+							type="button"
+							id="gatepassIN_backToMenuBtn"
+							class="px-6 py-3 bg-gray-400 text-white rounded-lg shadow-md hover:bg-gray-500 transition-colors"
+						>
+							Back to Menu
+						</button>
+						<button
+							type="submit"
+							class="px-6 py-3 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition-colors"
+						>
+							Save Gatepass In
+						</button>
+					</div>
+				</form>
+			</div>
+
+			<div
+				id="gatepassIN_summaryPage"
+				class="hidden bg-white p-6 md:p-8 rounded-xl shadow-lg my-8 transition-opacity duration-300"
+			>
+				<div class="gatepassIN_noPrint">
+					<div class="flex justify-between items-center mb-6">
+						<h2 class="text-3xl font-bold text-indigo-600">
+							Gatepass In Summary
+						</h2>
+						<img
+							src="../picture/logo.png"
+							alt="Logo"
+							class="w-32 gatepassIN_logo-blend"
+							onerror="this.onerror=null;this.src='https://placehold.co/128x51/ffffff/334155?text=Logo';"
+						/>
+					</div>
+					<div class="space-y-4 mb-8">
+						<h3 class="text-xl font-semibold text-gray-700">
+							General Information
+						</h3>
+						<ul
+							class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600"
+						>
+							<li>
+								<strong>Gatepass No.:</strong>
+								<span id="gatepassIN_summaryGatepassNo"></span>
+							</li>
+							<li>
+								<strong>Issue Date:</strong>
+								<span id="gatepassIN_summaryIssueDate"></span>
+							</li>
+							<li>
+								<strong>Driver Name:</strong>
+								<span id="gatepassIN_summaryDriverName"></span>
+							</li>
+							<li>
+								<strong>Truck No.:</strong>
+								<span id="gatepassIN_summaryTruckNo"></span>
+							</li>
+							<li>
+								<strong>เล่มที่:</strong>
+								<span id="gatepassIN_summaryBookNo"></span>
+							</li>
+							<li>
+								<strong>Issued By:</strong>
+								<span id="gatepassIN_summaryIssueBy"></span>
+							</li>
+						</ul>
+					</div>
+					<div class="space-y-4">
+						<h3 class="text-xl font-semibold text-gray-700">
+							Supplier Details
+						</h3>
+						<div class="overflow-x-auto rounded-lg shadow-md">
+							<table class="min-w-full bg-white">
+								<thead>
+									<tr
+										class="bg-indigo-500 text-white uppercase text-sm leading-normal"
+									>
+										<th class="py-3 px-4 text-left">Company</th>
+										<th class="py-3 px-4 text-left">Zone2</th>
+										<th class="py-3 px-4 text-left">Supplier Name</th>
+										<th class="py-3 px-4 text-center">PTB</th>
+										<th class="py-3 px-4 text-center">CPB</th>
+										<th class="py-3 px-4 text-center">MOV</th>
+										<th class="py-3 px-4 text-center">STP</th>
+										<th class="py-3 px-4 text-center">PL</th>
+										<th class="py-3 px-4 text-center">RP</th>
+										<th class="py-3 px-4 text-center font-bold">Total</th>
+									</tr>
+								</thead>
+								<tbody
+									id="gatepassIN_summarySupplierTableBody"
+									class="text-gray-600 text-sm font-light"
+								></tbody>
+								<tfoot class="bg-indigo-100 text-gray-800">
+									<tr>
+										<th colspan="3" class="py-3 px-4 text-right">TOTAL</th>
+										<th
+											id="gatepassIN_summary_total_ptb"
+											class="py-3 px-4 text-center"
+										>
+											0
+										</th>
+										<th
+											id="gatepassIN_summary_total_cpb"
+											class="py-3 px-4 text-center"
+										>
+											0
+										</th>
+										<th
+											id="gatepassIN_summary_total_mov"
+											class="py-3 px-4 text-center"
+										>
+											0
+										</th>
+										<th
+											id="gatepassIN_summary_total_stp"
+											class="py-3 px-4 text-center"
+										>
+											0
+										</th>
+										<th
+											id="gatepassIN_summary_total_pl"
+											class="py-3 px-4 text-center"
+										>
+											0
+										</th>
+										<th
+											id="gatepassIN_summary_total_rp"
+											class="py-3 px-4 text-center"
+										>
+											0
+										</th>
+										<th
+											id="gatepassIN_summary_total_row_sum"
+											class="py-3 px-4 text-center font-bold"
+										>
+											0
+										</th>
+									</tr>
+									<tr>
+										<th colspan="9" class="py-3 px-4 text-right">
+											GRAND TOTAL
+										</th>
+										<th
+											id="gatepassIN_summary_grand_total"
+											class="py-3 px-4 text-center font-bold"
+										>
+											0
+										</th>
+									</tr>
+								</tfoot>
+							</table>
+						</div>
+					</div>
+					<div class="flex justify-end space-x-4 mt-8">
+						<button
+							id="gatepassIN_summaryBackToMenuBtn"
+							class="px-6 py-3 bg-gray-400 text-white rounded-lg shadow-md hover:bg-gray-500 transition-colors"
+						>
+							Back to Menu
+						</button>
+						<button
+							id="gatepassIN_backToFormBtn"
+							class="px-6 py-3 bg-yellow-500 text-white rounded-lg shadow-md hover:bg-yellow-600 transition-colors"
+						>
+							New Gatepass In
+						</button>
+						<button
+							id="gatepassIN_printBtn"
+							class="px-6 py-3 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition-colors"
+						>
+							Print
+						</button>
+					</div>
+				</div>
+
+				<div id="gatepassIN_printVersion" class="hidden">
+					<div id="gatepassIN_printHeader">
+						<img
+							id="gatepassIN_printHeaderLogo"
+							src="../picture/logo.png"
+							alt="Logo"
+							onerror="this.onerror=null;this.src='https://placehold.co/100x40/ffffff/334155?text=Logo';"
+						/>
+						<div id="gatepassIN_printHeaderText">
+							<h1>บริษัท ไลเน็กซ์ อินเตอร์เนชั่นแนล (ประเทศไทย) จำกัด</h1>
+							<p>LINEX INTERNATIONAL (THAILAND) Co.,Ltd.</p>
+						</div>
+					</div>
+					<div id="gatepassIN_printTitle">
+						<h2 class="font-bold mt-2">GATE PASS: EMPTY PACKAGE-IN</h2>
+						<p>เอกสารใบผ่านขารับเข้า LDC-GW</p>
+					</div>
+					<div id="gatepassIN_printDetails">
+						<div>
+							<strong>Date:</strong> <span id="gatepassIN_printDate"></span>
+						</div>
+						<div>
+							<strong>Gate Pass No.:</strong>
+							<span id="gatepassIN_printGatepassNo"></span>
+						</div>
+						<div>
+							<strong>Driver Name:</strong>
+							<span id="gatepassIN_printDriverName"></span>
+						</div>
+						<div>
+							<strong>Truck No.:</strong>
+							<span id="gatepassIN_printTruckNo"></span>
+						</div>
+						<div>
+							<strong>เล่มที่:</strong>
+							<span id="gatepassIN_printBookNo"></span>
+						</div>
+						<!-- MOVED: Issue Date, Time is now here -->
+						<div>
+							<strong>Issue Date :</strong>
+							<span id="gatepassIN_printIssueDatetime"></span>
+						</div>
+					</div>
+					<div id="gatepassIN_printTable">
+						<table>
+							<thead>
+								<tr>
+									<th>COMPANY</th>
+									<th>ZONE2</th>
+									<th>SUPPLIER</th>
+									<th>PTB<br />กล่องพลาสติก</th>
+									<th>CPB<br />กล่องลูกฟูก</th>
+									<th>MOV<br />แร็คมีล้อ</th>
+									<th>STP<br />แร็คไม่มีล้อ</th>
+									<th>PALLET<br />พาเลท</th>
+									<th>Rope<br />เชือก</th>
+									<th>TOTAL<br />รวม</th>
+								</tr>
+							</thead>
+							<tbody id="gatepassIN_printSupplierTableBody"></tbody>
+							<tfoot id="gatepassIN_printSupplierTableFooter"></tfoot>
+						</table>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div
+			id="gatepassIN_alertModal"
+			class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full"
+		>
+			<div
+				class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white"
+			>
+				<div class="mt-3 text-center">
+					<div
+						id="gatepassIN_modalIconContainer"
+						class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100"
+					></div>
+					<h3
+						id="gatepassIN_modalTitle"
+						class="text-lg leading-6 font-medium text-gray-900 mt-2"
+					></h3>
+					<div class="mt-2 px-7 py-3">
+						<p id="gatepassIN_modalMessage" class="text-sm text-gray-500"></p>
+					</div>
+					<div class="items-center px-4 py-3">
+						<button
+							id="gatepassIN_modalCloseBtn"
+							class="px-4 py-2 text-white text-base font-medium rounded-md w-full shadow-sm focus:outline-none focus:ring-2"
+						></button>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script src="../js/gatepass-in.js" type="module"></script>
+	</body>
+</html>

@@ -1,0 +1,29 @@
+body {
+  font-family: "Sarabun", "Inter", sans-serif;
+}
+#report-table-container {
+  max-height: 75vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border-radius: 0.5rem;
+}
+thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.logo-blend {
+  mix-blend-mode: multiply;
+}
+#alert-modal {
+  z-index: 60;
+}
+.no-print {
+  display: block;
+}
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

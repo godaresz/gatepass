@@ -1,0 +1,45 @@
+/* Base body style using Sarabun for Thai and Inter as a fallback */
+body {
+  font-family: "Sarabun", "Inter", sans-serif;
+}
+
+/* Styling for scrollable tables with sticky headers */
+#master-table-container {
+  position: relative;
+  overflow-y: auto; /* Enable vertical scrolling */
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  max-height: 75vh;
+}
+
+#master-table-container table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#master-table-container thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.logo-blend {
+  mix-blend-mode: multiply;
+}
+
+/* Ensure confirmation modals appear above other modals */
+#alert-modal,
+#confirm-modal,
+#progress-modal,
+#login-modal,
+#change-password-modal {
+  z-index: 60;
+}
+
+/* Print handling - generally hide everything on master page during print unless specified otherwise */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

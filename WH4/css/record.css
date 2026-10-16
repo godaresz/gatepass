@@ -1,0 +1,209 @@
+/* Base body style using Sarabun for Thai and Inter as a fallback */
+body {
+  font-family: "Sarabun", "Inter", sans-serif;
+}
+
+/* Styling for scrollable tables with sticky headers */
+#history-list {
+  position: relative;
+  overflow-y: auto; /* Enable vertical scrolling */
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  max-height: 75vh;
+}
+
+#history-list table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#history-list thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.logo-blend {
+  mix-blend-mode: multiply;
+}
+
+/* Ensure confirmation modals appear above other modals */
+#alert-modal,
+#confirm-modal,
+#progress-modal,
+#login-modal {
+  z-index: 60;
+}
+
+/* Column Width Adjustments */
+#history-list table thead th:nth-child(1),
+#history-list table tbody td:nth-child(1) {
+  width: 8%;
+  min-width: 110px;
+}
+#history-list table thead th:nth-child(16),
+#history-list table tbody td:nth-child(16) {
+  width: 7%;
+  min-width: 100px;
+}
+#history-list table thead th:nth-child(17),
+#history-list table tbody td:nth-child(17) {
+  width: 11%;
+  min-width: 140px;
+}
+
+/* Print Handling */
+@media print {
+  @page {
+    size: A4;
+    margin: 0 1cm; /* Matches original master: Left/Right 1cm only */
+  }
+
+  body {
+    font-family: "Sarabun", "Inter", sans-serif;
+    font-size: 8pt;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  /* Print Version Visibility */
+  #print-version,
+  #print-version * {
+    visibility: visible;
+  }
+
+  #print-version {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+  }
+
+  /* Simulate .print-container inner spacing behavior per page */
+  #print-version > div {
+    padding: 0.5cm 0;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  /* Print Layout Specifics */
+  #print-header {
+    position: relative;
+    text-align: center;
+    min-height: 40px;
+  }
+  #print-header-logo {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100px;
+  } /* Fixed to left:0 */
+  #print-header-text h1 {
+    font-size: 1.1rem;
+    font-weight: bold;
+    margin: 0;
+  }
+  #print-header-text p {
+    font-size: 0.8rem;
+    margin: 0;
+  }
+  #print-title {
+    margin-bottom: 1cm;
+    text-align: center;
+  }
+  #print-title h2 {
+    font-size: 1rem;
+    font-weight: bold;
+    margin: 0;
+  }
+  #print-title p {
+    font-size: 0.8rem;
+    margin: 0;
+  }
+
+  #print-details {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.1rem 1rem;
+    margin-bottom: 0.5cm;
+    font-size: 0.8rem;
+  }
+  #print-details div {
+    display: flex;
+  }
+  #print-details strong {
+    width: 90px;
+    display: inline-block;
+  }
+
+  #print-table table {
+    table-layout: fixed;
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 7pt;
+  }
+  #print-table th,
+  #print-table td {
+    border: 1px solid black;
+    padding: 1px;
+    text-align: center;
+    height: 14px;
+    word-wrap: break-word;
+  }
+  #print-table th {
+    background-color: #e6deb8 !important;
+    font-weight: bold;
+  }
+  #print-table tfoot td {
+    background-color: #d2c699 !important;
+  }
+  #print-table tbody tr:nth-child(even) {
+    background-color: #f2f2f2 !important;
+  }
+  #print-table th:first-child,
+  #print-table td:first-child {
+    width: 18%;
+    text-align: left;
+  }
+  #print-table th:not(:first-child),
+  #print-table td:not(:first-child) {
+    width: 11.7%;
+  }
+
+  /* Ensure supplier name aligns left */
+  #print-table .supplier-name {
+    text-align: left;
+  }
+
+  #print-footer {
+    margin-top: 3rem;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, auto);
+    gap: 2.5rem 10rem;
+    text-align: center;
+    font-size: 0.8rem;
+  }
+  #print-footer p {
+    font-weight: bold;
+  }
+  #print-footer .signature-box {
+    margin-bottom: 1rem;
+    border-top: 1px dotted black;
+    padding-top: 2px;
+    margin-top: 0.3rem;
+    height: 5px;
+  }
+}

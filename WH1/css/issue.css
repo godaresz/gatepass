@@ -1,0 +1,218 @@
+/* Base body style using Sarabun for Thai and Inter as a fallback */
+body {
+  font-family: "Sarabun", "Inter", sans-serif;
+}
+
+/* Styling for scrollable tables with sticky headers */
+#supplier-table-container {
+  max-height: 75vh;
+  overflow-y: auto; /* Enable vertical scrolling */
+  position: relative;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+#supplier-table-container table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#supplier-table-container thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* 1. Body (Form): Apply Dark Gray to the INPUT element only, not the TD */
+#supplier-table-container td:last-child input {
+  background-color: #cbd5e1; /* Slate-300 (Dark Gray) */
+  font-weight: 700; /* Bold */
+  color: #1e293b; /* Slate-800 */
+  text-align: center;
+}
+
+/* 2. Summary Table (Web View): Apply to TD since there are no inputs */
+#summary-supplier-table-body td:last-child {
+  background-color: #cbd5e1; /* Slate-300 */
+  color: #1e293b;
+  font-weight: bold;
+}
+
+/* 3. Footer: Apply to last cell to highlight the column total */
+#supplier-table-footer td:last-child,
+#summary-supplier-table-footer td:last-child {
+  background-color: #cbd5e1; /* Slate-300 */
+  color: #1e293b;
+  font-weight: bold;
+}
+
+.logo-blend {
+  mix-blend-mode: multiply;
+}
+
+/* Ensure confirmation modals appear above other modals */
+#alert-modal,
+#confirm-modal {
+  z-index: 60;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0 1cm;
+  }
+  body {
+    font-family: "Sarabun", "Inter", sans-serif;
+    font-size: 8pt; /* Reduced base font size */
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide everything on the page and selectively show print container */
+  body * {
+    visibility: hidden;
+  }
+
+  #print-version,
+  #print-version * {
+    visibility: visible;
+  }
+
+  /* Position the print container to fill the page */
+  #print-version {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    border: none;
+    box-shadow: none;
+  }
+
+  /* Restore padding for inner divs to simulate top/bottom margin */
+  #print-version > div {
+    padding: 0.5cm 0;
+  }
+
+  /* Hide elements with no-print class */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Print Layout Structure */
+  #print-header {
+    position: relative;
+    text-align: center;
+    min-height: 40px;
+  }
+  #print-header-logo {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100px;
+  }
+  #print-header-text {
+    display: inline-block;
+  }
+  #print-header-text h1 {
+    font-size: 1.1rem;
+    font-weight: bold;
+    margin: 0;
+  }
+  #print-header-text p {
+    font-size: 0.8rem;
+    margin: 0;
+  }
+  #print-title {
+    margin-bottom: 1cm;
+    text-align: center;
+  }
+  #print-title h2 {
+    font-size: 1rem;
+    font-weight: bold;
+    margin: 0;
+  }
+  #print-title p {
+    margin-bottom: 1cm;
+    font-size: 0.8rem;
+    margin: 0;
+  }
+  #print-details {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.1rem 1rem;
+    margin-bottom: 0.5cm;
+    font-size: 0.8rem;
+  }
+  #print-details div {
+    display: flex;
+  }
+  #print-details strong {
+    width: 90px;
+    display: inline-block;
+  }
+
+  /* Print Table Styles */
+  #print-table table {
+    table-layout: fixed;
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 7pt;
+  }
+  #print-table th,
+  #print-table td {
+    border: 1px solid black;
+    padding: 1px;
+    text-align: center;
+    height: 14px;
+    word-wrap: break-word;
+  }
+  #print-table th {
+    background-color: #e6deb8 !important;
+    font-weight: bold;
+  }
+  #print-table tfoot td {
+    background-color: #d2c699 !important;
+    font-weight: bold;
+  }
+  #print-table tbody tr:nth-child(even) {
+    background-color: #f2f2f2 !important;
+  }
+  #print-table th:first-child,
+  #print-table td:first-child {
+    width: 18%;
+    text-align: left;
+  }
+  #print-table th:not(:first-child),
+  #print-table td:not(:first-child) {
+    width: 11.7%;
+  }
+
+  #print-table .supplier-name {
+    text-align: left;
+  }
+
+  /* Print Footer (2x2 Grid Layout) */
+  #print-footer {
+    margin-top: 3rem;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, auto);
+    gap: 2.5rem 10rem;
+    text-align: center;
+    font-size: 0.8rem;
+  }
+  #print-footer p {
+    font-weight: bold;
+  }
+  #print-footer .signature-box {
+    margin-bottom: 1rem;
+    border-top: 1px dotted black;
+    padding-top: 2px;
+    margin-top: 0.3rem;
+    height: 5px;
+  }
+}
