@@ -19,6 +19,7 @@ import {
   startAfter,
   writeBatch,
   setDoc,
+  getCountFromServer,
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- IMPORT จากไฟล์กลาง ---
@@ -33,7 +34,9 @@ import {
   csvCell,
   downloadTextFile,
   commitInChunks,
+  confirmReadBudget,
 } from "./utils.js";
+import { getMasterData } from "./master-cache.js";
 
 let loggedInUser = null;
 const SESSION_KEY = "gatepass_user_session";
@@ -140,7 +143,8 @@ const setupIdleListeners = () => {
 
 // --- Record/History Logic ---
 
-const HISTORY_PAGE_SIZE = 50;
+// Each page costs this many Firestore reads (free plan: 50,000 reads/day).
+const HISTORY_PAGE_SIZE = 30;
 const GATEPASSES_PATH = () => `artifacts/${appId}/public/data/gatepasses`;
 
 const clearHistoryFilters = () => {
@@ -445,11 +449,21 @@ const updateHistoryTotals = () => {
 };
 
 // All records in the date range that match the other filters.
+// Returns null when the user cancels because the read would be too big.
 const fetchAllMatchingHistory = async () => {
   const filters = getHistoryFilters();
-  const snapshot = await getDocs(
-    query(collection(db, GATEPASSES_PATH()), ...buildDateConstraints(filters))
+  const q = query(
+    collection(db, GATEPASSES_PATH()),
+    ...buildDateConstraints(filters)
   );
+  // A count costs ~1 read per 1,000 records; check it before reading all.
+  try {
+    const countSnap = await getCountFromServer(q);
+    if (!confirmReadBudget(countSnap.data().count)) return null;
+  } catch (e) {
+    console.warn("Count query failed, continuing:", e);
+  }
+  const snapshot = await getDocs(q);
   return snapshot.docs
     .map((d) => ({ id: d.id, ...d.data() }))
     .filter((d) => docMatchesFilters(d, filters));
@@ -462,6 +476,7 @@ const handleLoadAllHistory = async () => {
 
   try {
     const filteredDocs = await fetchAllMatchingHistory();
+    if (!filteredDocs) return;
     const historyTableBody = document.getElementById("history-table-body");
     historyTableBody.innerHTML = "";
     if (filteredDocs.length === 0) {
@@ -667,6 +682,10 @@ const exportHistoryToCSV = async () => {
     try {
       // Same filters as the table (incl. Supplier and Search).
       const docs = await fetchAllMatchingHistory();
+      if (!docs) {
+        hideProgressModal();
+        return;
+      }
 
       const headers = [
         "Date",
@@ -1020,16 +1039,14 @@ const handleDeleteAllHistory = async () => {
 
 const populateFilterDatalists = async () => {
   try {
-    const q = await getDocs(
-      collection(db, `artifacts/${appId}/public/data/master_data`)
-    );
+    // Cached (see master-cache.js): 1 read instead of the whole collection.
+    const rows = await getMasterData();
     const companies = new Set();
     const zones = new Set();
     const suppliers = new Set();
-    q.forEach((doc) => {
-      const d = doc.data();
+    rows.forEach((d) => {
       if (d.company) companies.add(d.company);
-      if (d.zone1) zones.add(d.zone1);
+      // Only zone2 is stored on gatepasses, zone1 would never match.
       if (d.zone2) zones.add(d.zone2);
       if (d.supplier) suppliers.add(d.supplier);
     });

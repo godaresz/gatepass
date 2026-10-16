@@ -22,6 +22,21 @@ tools/sync-sites.sh
 ไฟล์ที่ **ไม่** ถูกคัดลอก คือ `js/firebase-config.js` ของแต่ละคลัง
 (Firebase config + `siteConfig.gatepassPrefix`)
 
+## การประหยัดโควต้า Firebase (Spark ฟรี: 50,000 reads / 20,000 writes ต่อวัน)
+
+| จุด | เดิม | ตอนนี้ |
+|---|---|---|
+| เปิดหน้า Issue / Gatepass IN / Record / Report | อ่าน master_data ทั้งหมด (N reads ทุกครั้ง) | อ่าน 1 doc (`counters/master_version`) ใช้ master ที่ cache ไว้ในเครื่อง (`js/master-cache.js`) อ่านใหม่ทั้งหมดเฉพาะเมื่อมีการ Save Master หรือ cache อายุเกิน 12 ชม. |
+| Save Master | อ่านทั้ง collection อีก 2 รอบ | ไม่อ่านเพิ่ม (ใช้ id ที่โหลดไว้) |
+| Record หน้าแรก / Load More | 50 reads ต่อหน้า | 30 reads ต่อหน้า (`HISTORY_PAGE_SIZE`) |
+| Record Load All / Export, Report | อ่านทุกใบในช่วงวันที่ (ไม่ใส่วันที่ = ทั้งฐานข้อมูล) | นับจำนวนก่อน (~1 read ต่อ 1,000 ใบ) เกิน 2,000 ถามยืนยัน เกิน 15,000 ไม่ให้ดึง ต้องเลือกช่วงให้สั้นลง |
+| กด Fetch Report ซ้ำช่วงเดิม | อ่านใหม่ทุกครั้ง | ภายใน 5 นาทีใช้ผลเดิม (0 reads) |
+| อัปเดตใบ Empty-Out | อ่านใบซ้ำหลังบันทึก | ใช้ข้อมูลที่บันทึก (0 reads) |
+
+ปรับเกณฑ์ได้ที่ `READ_CONFIRM_LIMIT` / `READ_BLOCK_LIMIT` ใน `js/utils.js`
+และ `HISTORY_PAGE_SIZE` ใน `js/record.js`
+(ระบบ Login อ่านรายชื่อ users ทุกครั้งที่เปิดหน้า Login — ไม่ได้แก้ตามที่ขอ แต่ปกติมีไม่กี่ user)
+
 ## สิ่งที่แก้ไข (ไม่ได้แตะระบบ Login / User)
 
 ### ข้อผิดพลาดที่ทำให้ข้อมูลผิด

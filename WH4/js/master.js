@@ -25,6 +25,12 @@ import {
 	toLocalDateKey,
 	commitInChunks,
 } from "./utils.js";
+import { getMasterData, markMasterDataChanged } from "./master-cache.js";
+
+// Document ids that exist in Firestore, as of the last load/save. Used to
+// know which documents to delete on save without reading the collection
+// again (saves N reads per save).
+let loadedMasterIds = new Set();
 
 const MASTER_FIELDS = [
 	"milkRunCompany",
@@ -291,16 +297,13 @@ const fetchAndRenderMasterData = async () => {
 	tableBody.innerHTML = `<tr><td colspan="8" class="text-center p-4">Loading Master Data...</td></tr>`;
 
 	try {
-		const masterCollection = collection(
-			db,
-			`artifacts/${appId}/public/data/master_data`
-		);
-		const querySnapshot = await getDocs(masterCollection);
+		// Always fresh from the server on this admin page (also refreshes the
+		// cache the other pages use).
+		const rows = await getMasterData({ force: true });
+		loadedMasterIds = new Set(rows.map((r) => r.id));
 
-		masterData = querySnapshot.docs.map((doc) => {
-			const data = doc.data();
+		masterData = rows.map((data) => {
 			return {
-				id: doc.id,
 				...data,
 				check: data.check || (data.company || "") + (data.supplier || ""),
 				order: data.order !== undefined ? data.order : 0,
@@ -521,13 +524,20 @@ const saveMasterData = async () => {
 				document.getElementById("progress-modal-title").textContent =
 					"Removing deleted rows...";
 				const keepIds = new Set(toWrite.map((item) => item.ref.id));
-				const existingDocsSnapshot = await getDocs(masterCollection);
-				const toDelete = existingDocsSnapshot.docs.filter(
-					(d) => !keepIds.has(d.id)
+				const toDelete = [...loadedMasterIds].filter((id) => !keepIds.has(id));
+				await commitInChunks(db, writeBatch, toDelete, (batch, id) =>
+					batch.delete(doc(masterCollection, id))
 				);
-				await commitInChunks(db, writeBatch, toDelete, (batch, d) =>
-					batch.delete(d.ref)
-				);
+
+				// Show what was just written instead of reading it all back.
+				const savedRows = toWrite.map((item) => ({
+					id: item.ref.id,
+					...item.rowData,
+				}));
+				loadedMasterIds = keepIds;
+				masterData = savedRows;
+				renderMasterTable();
+				await markMasterDataChanged(savedRows);
 
 				updateProgress(100);
 				hideProgressModal();
@@ -536,7 +546,6 @@ const saveMasterData = async () => {
 					"Success",
 					true
 				);
-				await fetchAndRenderMasterData();
 			} catch (error) {
 				hideProgressModal();
 				console.error("Error saving master data: ", error);
@@ -548,7 +557,7 @@ const saveMasterData = async () => {
 
 const deleteAllMasterData = async () => {
 	if (!db) return showModal("Database not connected.");
-	if (masterData.length === 0)
+	if (loadedMasterIds.size === 0)
 		return showModal("There is no master data to delete.", "Info", true);
 
 	showConfirmModal(
@@ -560,12 +569,13 @@ const deleteAllMasterData = async () => {
 				let batch = writeBatch(db);
 				let count = 0;
 
-				for (const item of masterData) {
-					// Construct reference manually since masterData is now object array
+				// Only documents that exist in Firestore (new unsaved rows have
+				// no id yet).
+				for (const id of loadedMasterIds) {
 					const docRef = doc(
 						db,
 						`artifacts/${appId}/public/data/master_data`,
-						item.id
+						id
 					);
 					batch.delete(docRef);
 					count++;
@@ -582,13 +592,16 @@ const deleteAllMasterData = async () => {
 					updateProgress(((i + 1) / batches.length) * 100);
 				}
 
+				masterData = [];
+				loadedMasterIds = new Set();
+				renderMasterTable();
+				await markMasterDataChanged([]);
 				hideProgressModal();
 				showModal(
 					"All master data has been deleted successfully!",
 					"Success",
 					true
 				);
-				await fetchAndRenderMasterData();
 			} catch (error) {
 				hideProgressModal();
 				console.error("Error deleting all master data: ", error);

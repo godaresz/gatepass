@@ -17,6 +17,7 @@ import {
 
 // --- IMPORT จากไฟล์กลาง ---
 import { auth, db, appId, siteConfig } from "./firebase-config.js";
+import { getMasterData } from "./master-cache.js";
 import {
 	QTY_FIELDS,
 	EMPTY_VEHICLE,
@@ -34,6 +35,7 @@ let masterDataCache = {
 };
 let isSaving = false;
 let masterDataPromise = null;
+let editingGatepass = null; // data of the gatepass opened for editing
 const MIN_TABLE_ROWS = 30;
 
 // --- UI Helpers ---
@@ -92,10 +94,8 @@ const fetchMasterData = () => {
 const loadMasterData = async () => {
 	if (!db) return;
 	try {
-		const snap = await getDocs(
-			collection(db, `artifacts/${appId}/public/data/master_data`)
-		);
-		masterData = snap.docs.map((d) => d.data());
+		// Cached (see master-cache.js): 1 read instead of the whole collection.
+		masterData = await getMasterData();
 		masterDataCache = {
 			companies: new Set(),
 			zones: new Set(),
@@ -356,6 +356,7 @@ const loadGatepassForEditing = async (docId) => {
 		}
 
 		const data = snapshot.data();
+		editingGatepass = data;
 		if (data.status === "Empty-IN") {
 			// Gatepass IN records have their own form.
 			sessionStorage.setItem("editGatepassInId", docId);
@@ -498,8 +499,8 @@ const handleSubmit = async (e) => {
 				lastUpdated: serverTimestamp(),
 			});
 			showModal("Updated successfully!", "Success", true);
-			const snap = await getDoc(docRef);
-			populateSummary(snap.data());
+			// Build the summary from what was saved (no extra read).
+			populateSummary({ ...(editingGatepass || {}), ...formData });
 		} else {
 			// Local date (Thailand), not UTC — otherwise gatepasses issued
 			// between 00:00 and 07:00 get yesterday's number sequence.

@@ -6,24 +6,31 @@ import {
 import {
   collection,
   getDocs,
+  getCountFromServer,
   query,
   where,
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- IMPORT จากไฟล์กลาง ---
 import { auth, db, appId } from "./firebase-config.js";
+import { getMasterData } from "./master-cache.js";
 import {
   QTY_FIELDS,
   escapeHtml,
   buildRangeDate,
   csvCell,
   downloadTextFile,
+  confirmReadBudget,
 } from "./utils.js";
 
 let masterDataCache = { companies: new Set(), zones: new Set() };
 let hasReportData = false;
 let rawDocsCache = null; // last fetched Firestore docs, so Company/Zone/Search can re-filter instantly without another query
 let searchDebounceTimer = null;
+// Pressing "Fetch Report" again for the same range within this time reuses
+// the last result instead of reading every document again.
+const REPORT_REUSE_MS = 5 * 60 * 1000;
+let lastFetch = { key: "", at: 0 };
 
 const showModal = (msg) => {
   document.getElementById("modal-message").textContent = msg;
@@ -39,11 +46,9 @@ document
 const fetchMasterData = async () => {
   if (!db) return;
   try {
-    const snap = await getDocs(
-      collection(db, `artifacts/${appId}/public/data/master_data`)
-    );
-    snap.forEach((d) => {
-      const data = d.data();
+    // Cached (see master-cache.js): 1 read instead of the whole collection.
+    const rows = await getMasterData();
+    rows.forEach((data) => {
       if (data.company) masterDataCache.companies.add(data.company);
       // NOTE: only zone2 is ever saved onto a gatepass/supplier as "zone".
       // zone1 is a separate master-data grouping field and never appears
@@ -125,6 +130,16 @@ const handleFetchReport = async () => {
     where("issueDate", "<=", end),
   ];
 
+  const rangeKey = `${start.getTime()}|${end.getTime()}`;
+  if (
+    rawDocsCache &&
+    lastFetch.key === rangeKey &&
+    Date.now() - lastFetch.at < REPORT_REUSE_MS
+  ) {
+    renderReport(rawDocsCache, getCurrentFilters());
+    return;
+  }
+
   setFetchingState(true);
   showTableMessage("Loading report...");
   try {
@@ -132,12 +147,25 @@ const handleFetchReport = async () => {
       collection(db, `artifacts/${appId}/public/data/gatepasses`),
       ...constraints
     );
+    // Count first (~1 read per 1,000 records) so a very long range cannot
+    // use up the free daily read quota by accident.
+    try {
+      const countSnap = await getCountFromServer(q);
+      if (!confirmReadBudget(countSnap.data().count)) {
+        showTableMessage("Cancelled. Please choose a shorter date range.");
+        return;
+      }
+    } catch (e) {
+      console.warn("Count query failed, continuing:", e);
+    }
     const snap = await getDocs(q);
     rawDocsCache = snap.docs;
+    lastFetch = { key: rangeKey, at: Date.now() };
     renderReport(rawDocsCache, getCurrentFilters());
   } catch (e) {
     console.error(e);
     rawDocsCache = null;
+    lastFetch = { key: "", at: 0 };
     showTableMessage("Failed to load report.", true);
     showModal(
       "Fetch failed. " +

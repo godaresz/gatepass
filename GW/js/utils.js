@@ -117,6 +117,31 @@ export const parseCsvText = (text) => {
 	return rows.filter((r) => r.some((v) => String(v).trim() !== ""));
 };
 
+// --- Read budget (Firebase Spark free plan: 50,000 document reads/day) ---
+// A query that would read more than READ_CONFIRM_LIMIT documents asks the
+// user first; above READ_BLOCK_LIMIT it is refused (narrow the dates).
+export const READ_CONFIRM_LIMIT = 2000;
+export const READ_BLOCK_LIMIT = 15000;
+
+// `count` = documents the query would read. Returns true if OK to go on.
+export const confirmReadBudget = (count) => {
+	if (count > READ_BLOCK_LIMIT) {
+		alert(
+			`ช่วงเวลาที่เลือกมี ${count.toLocaleString()} รายการ ` +
+				`เกินที่อนุญาต (${READ_BLOCK_LIMIT.toLocaleString()}) ต่อครั้ง\n` +
+				"เพื่อไม่ให้เกินโควต้าฟรีของ Firebase (50,000 reads/วัน) กรุณาเลือกช่วงวันที่ให้สั้นลง"
+		);
+		return false;
+	}
+	if (count > READ_CONFIRM_LIMIT) {
+		return confirm(
+			`จะดึงข้อมูล ${count.toLocaleString()} รายการ ` +
+				"(ใช้โควต้า Firebase ฟรี 50,000 reads/วัน) ต้องการดำเนินการต่อหรือไม่?"
+		);
+	}
+	return true;
+};
+
 // Firestore allows at most 500 writes per batch. `apply(batch, item)` adds
 // one write per item; batches are committed in order.
 export const commitInChunks = async (

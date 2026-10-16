@@ -19,6 +19,7 @@ import {
 
 // --- IMPORT FROM CENTRAL CONFIG ---
 import { auth, db, appId } from "./firebase-config.js";
+import { getMasterData } from "./master-cache.js";
 import {
 	EMPTY_VEHICLE,
 	escapeHtml,
@@ -142,14 +143,8 @@ const formatGatepassINDateEN = (date) => {
 const fetchMasterDataForGatepassIN = async () => {
 	if (!gatepassIN_db) return;
 	try {
-		const masterCollectionRef = collection(
-			gatepassIN_db,
-			`artifacts/${gatepassIN_appId}/public/data/master_data`
-		);
-		const q = query(masterCollectionRef);
-		const querySnapshot = await getDocs(q);
-		gatepassIN_masterData = querySnapshot.docs.map((doc) => doc.data());
-		gatepassIN_masterData.sort((a, b) => (a.order || 0) - (b.order || 0));
+		// Cached (see master-cache.js): 1 read instead of the whole collection.
+		gatepassIN_masterData = await getMasterData();
 	} catch (error) {
 		console.error("Error fetching master data:", error);
 		showGatepassINModal(
